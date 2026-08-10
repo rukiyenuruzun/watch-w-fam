@@ -42,3 +42,7 @@ next-env.d.ts
 
 # analiz talepleri (calisma zamani verisi)
 /data
+
+# python derleme artıkları
+__pycache__/
+*.pyc
