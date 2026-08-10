@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎬 watch w/fam — Aileyle Ne İzlenir?
 
-## Getting Started
+**"Bu film aileyle izlenir mi?"** sorusunu, film daha açılmadan cevaplayan site.
+Bir filmin öpüşme, cinsel içerik, ima ve küfür gibi hassas sahnelerini **zaman
+damgalarıyla** önceden gösterir — koltukta mahcup olmayın diye.
 
-First, run the development server:
+> Taslak sürüm · Türkçe & İngilizce
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Ne yapar?
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Sahneleri önceden söyler.** Her analizli filmde hassas sahnelerin listesi
+  vardır: hangi dakikada başlıyor, ne kadar sürüyor, ne kadar yoğun
+  (hafif / orta / yoğun) ve kısaca ne oluyor.
+- **Tek bakışta hüküm verir.** Sahne yoğunluğu kategori ağırlıklarıyla
+  birleşip bir "toplu risk" yüzdesine ve esprili bir hükme dönüşür:
+  *Aileyle izlenir 👌 · Riskli — kumanda yakında dursun 😬 · Yoook, izlenmez 🚨 ·
+  HAYATTA izlenmez ☠️*
+- **Hüküm kişiseldir.** Hassasiyet profilinde her kategori için
+  "Önemsemem / Normal / Hassas / Çok hassas" seçilir; yüzdeler ve hükümler
+  sitenin her yerinde ona göre yeniden hesaplanır. Küfüre aldırmayan biriyle
+  küfüre çok hassas biri aynı filme farklı hüküm görür.
+- **Topluluk kör noktayı kapatır.** Otomatik analiz altyazıdan yapıldığı için
+  konuşmasız (görsel) sahneleri kaçırabilir. Kullanıcılar eksik sahneyi
+  ekler; topluluk 👍/👎 ile doğrular. Doğrulanan sahneler hesaba katılır,
+  yanlışlananlar elenir.
+- **Katalog ve keşif.** TMDB tabanlı arama (oyuncu/yönetmen dahil), tür / yıl /
+  süre / puan / dil / **risk** filtreleri, "Ailece izlenebilir komediler" ve
+  "Temiz klasikler" gibi otomatik dolan raflar ve tek tıkla
+  **rastgele güvenli film** çekilişi.
+- **Kişisel köşe.** İzleme listesi (risksizden riskliye sıralanabilir),
+  yorumlar ve "yüzde doğru muydu?" oyları, isteğe bağlı üyelik (Google ya da
+  e-posta) ve profil sayfası. Üyeliksiz kullanım da tam çalışır; giriş
+  yapılınca anonim veriler hesaba taşınır.
+- **Analiz talebi kuyruğu.** Analizi olmayan film tek tıkla kuyruğa girer;
+  arka planda altyazısı bulunur, birkaç dakika içinde analiz sayfaya düşer.
+  Durum sayfasından kuyruk ve günlük kota izlenir.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Nasıl çalışır? (kuş bakışı)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Film için uygun bir altyazı bulunur (OpenSubtitles).
+2. Arka plandaki analiz servisi altyazıyı tarar; hassas sahneleri
+   kategorilere ayırıp zaman damgalarıyla kaydeder.
+3. Site bu veriden kategori yoğunluklarını, toplu risk yüzdesini ve hükmü
+   hesaplar — ziyaretçinin hassasiyet profili ve topluluğun doğruladığı
+   sahneler de hesaba katılır.
 
-## Learn More
+**Dürüstlük notu:** Sonuçlar taslak bir formülün ve yalnızca altyazı
+analizinin ürünüdür; kesin doğru olarak sunulmaz. Her sahnenin yanında
+kaynağı yazar (otomatik analiz / kullanıcı katkısı / topluluk doğruladı) ve
+görsel sahnelerin kaçabileceği açıkça belirtilir.
 
-To learn more about Next.js, take a look at the following resources:
+## Çalıştırma (kısaca)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Next.js sitesi için `npm install && npm run dev`; gereken anahtarlar
+`.env.example` dosyasında listelidir (TMDB, OpenSubtitles, Supabase).
+Veritabanı şeması `supabase/schema.sql` ile kurulur; altyazı analiz servisi
+`analyzer/` klasöründeki Python işçisidir.
