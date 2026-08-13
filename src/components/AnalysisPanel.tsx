@@ -10,7 +10,9 @@ import Link from "next/link";
 import {
   computeCategoryScores,
   computeOverallRisk,
+  isAgeFloored,
   isPersonalized,
+  needsVisualCaution,
   verdictTier,
   VERDICT_META,
   type SensitivityWeights,
@@ -43,6 +45,10 @@ interface Props {
   personal?: SensitivityWeights;
   // Topluluk sahne katkıları (oy bilgisi görüntüleyene göre)
   community?: SceneContribution[];
+  // Resmî yaş sınırı: hükme taban uygular ve "görsel sahne kaçmış olabilir"
+  // uyarısını tetikler
+  minAge?: number | null;
+  certification?: string | null;
 }
 
 export default function AnalysisPanel({
@@ -51,6 +57,8 @@ export default function AnalysisPanel({
   runtimeMinutes,
   personal,
   community = [],
+  minAge,
+  certification,
 }: Props) {
   const t = DICTIONARIES[locale];
 
@@ -120,7 +128,9 @@ export default function AnalysisPanel({
 
   const scores = computeCategoryScores(scoringAnalysis, runtimeMinutes);
   const overall = computeOverallRisk(scores, personal);
-  const tier = verdictTier(overall);
+  const tier = verdictTier(overall, minAge);
+  const ageFloored = isAgeFloored(overall, minAge);
+  const visualCaution = needsVisualCaution(scores, minAge);
   const meta = VERDICT_META[tier];
   const verdict = t.verdicts[tier];
   const hours =
@@ -168,6 +178,25 @@ export default function AnalysisPanel({
           </p>
         </div>
       </div>
+
+      {/* Resmî yaş sınırı uyarısı: altyazı analizinin göremediği görsel
+          sahneler için tek dış kanıt. Hüküm yükseltildiyse gerekçesi de
+          burada yazar — kullanıcı neyin neden değiştiğini görsün. */}
+      {(ageFloored || visualCaution) && certification && (
+        <div className="-mt-2 flex flex-wrap items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-4">
+          <span aria-hidden className="text-xl">
+            🔞
+          </span>
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-sm font-semibold text-amber-300">
+              {t.ageRating.title(certification)}
+            </p>
+            <p className="text-xs leading-relaxed text-muted">
+              {ageFloored ? t.ageRating.floored : t.ageRating.caution}
+            </p>
+          </div>
+        </div>
+      )}
 
       {isPersonalized(personal) && (
         <Link

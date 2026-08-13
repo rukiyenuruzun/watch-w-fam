@@ -38,9 +38,11 @@ export async function getAuthUser(): Promise<User | null> {
   return data.user ?? null;
 }
 
-// Görünen ad: Google'dan gelen isim, yoksa e-postanın @ öncesi
+// Görünen ad: kullanıcının kendi seçtiği ad (profilden), yoksa Google'dan
+// gelen isim, yoksa e-postanın @ öncesi
 export function displayName(user: User): string {
   return (
+    (user.user_metadata?.display_name as string) ||
     (user.user_metadata?.full_name as string) ||
     (user.user_metadata?.name as string) ||
     user.email?.split("@")[0] ||

@@ -79,6 +79,11 @@ export interface Film {
   cast?: string[];
   director?: string;
   voteAverage?: number | null;
+  // Resmî yaş sınırı (TMDB). Altyazı analizinin göremediği görsel içerik
+  // için tek dış kanıt: "16+", "18", "R", "PG-13"…
+  certification?: string | null;
+  certificationCountry?: string | null; // "TR", "US"…
+  minAge?: number | null; // sınırdan çıkarılan sayı (PG-13 → 13, R → 17)
 }
 
 // Kullanıcı değerlendirmesi: filmi beğenme + "yüzdemiz doğru mu?" oyu + yorum

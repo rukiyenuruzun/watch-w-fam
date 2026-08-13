@@ -41,20 +41,32 @@ async function getToken(apiKey: string): Promise<string | null> {
   }
 }
 
+function fetchInfos(apiKey: string, token: string) {
+  return fetch(`${API}/infos/user`, {
+    headers: {
+      "Api-Key": apiKey,
+      Authorization: `Bearer ${token}`,
+      "User-Agent": USER_AGENT,
+    },
+    cache: "no-store",
+  });
+}
+
 export async function getQuota(): Promise<QuotaInfo | null> {
   const apiKey = process.env.OPENSUBTITLES_API_KEY;
   if (!apiKey) return null;
-  const token = await getToken(apiKey);
+  let token = await getToken(apiKey);
   if (!token) return null;
   try {
-    const res = await fetch(`${API}/infos/user`, {
-      headers: {
-        "Api-Key": apiKey,
-        Authorization: `Bearer ${token}`,
-        "User-Agent": USER_AGENT,
-      },
-      cache: "no-store",
-    });
+    let res = await fetchInfos(apiKey, token);
+    // Önbellekteki jeton başka bir girişle (ör. analiz işçisi aynı hesabı
+    // kullanınca) geçersizleşmiş olabilir; bir kez taze girişle yinele
+    if (res.status === 401 || res.status === 403) {
+      cachedToken = null;
+      token = await getToken(apiKey);
+      if (!token) return null;
+      res = await fetchInfos(apiKey, token);
+    }
     const d = (await res.json()).data;
     if (!d) return null;
     return {

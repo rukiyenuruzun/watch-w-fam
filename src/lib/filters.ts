@@ -14,7 +14,7 @@ export type DecadeKey =
   | "1980s"
   | "older"
   | "classic";
-export type SortKey = "popular" | "rating" | "newest";
+export type SortKey = "popular" | "rating" | "newest" | "risk";
 export type RiskFilter = VerdictTier | "analyzed";
 
 export interface FilmFilters {
@@ -52,7 +52,7 @@ export const DECADE_RANGES: Record<DecadeKey, { from: number; to: number }> = {
 export const LANGUAGES = ["en", "tr", "fr", "es", "de", "it", "ja", "ko", "hi"];
 
 const RISK_VALUES = new Set(["analyzed", "ok", "risky", "nope", "never"]);
-const SORT_VALUES = new Set(["popular", "rating", "newest"]);
+const SORT_VALUES = new Set(["popular", "rating", "newest", "risk"]);
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -121,5 +121,15 @@ export function sortFilms(films: Film[], sort: SortKey): Film[] {
   const out = [...films];
   if (sort === "rating") out.sort((a, b) => (b.voteAverage ?? 0) - (a.voteAverage ?? 0));
   if (sort === "newest") out.sort((a, b) => (b.releaseYear ?? 0) - (a.releaseYear ?? 0));
+  // "risk" analiz verisi gerektirir; ana sayfada skorlar hesaplandıktan
+  // sonra uygulanır (sortFilmsByRisk), burada sıra korunur
   return out;
+}
+
+// Risksizden riskliye; analizi olmayanlar (risk bilinmiyor) sona, kendi
+// aralarındaki sıra bozulmadan
+export function sortFilmsByRisk(films: Film[], risks: Map<number, number>): Film[] {
+  return [...films].sort(
+    (a, b) => (risks.get(a.tmdbId) ?? Infinity) - (risks.get(b.tmdbId) ?? Infinity)
+  );
 }

@@ -15,6 +15,7 @@ import {
   setSensitivity,
   type SensitivityLevel,
 } from "@/lib/sensitivity";
+import { THEME_COOKIE, THEMES, type Theme } from "@/lib/theme";
 import type { RiskVote } from "@/lib/types";
 import { CONTENT_CATEGORIES, type ContentCategory } from "@/lib/types";
 
@@ -215,5 +216,60 @@ export async function setLocaleAction(locale: string) {
   if (locale !== "tr" && locale !== "en") return;
   const store = await cookies();
   store.set(LOCALE_COOKIE, locale, { maxAge: 60 * 60 * 24 * 365, path: "/" });
+  revalidatePath("/", "layout");
+}
+
+// Profil düzenleme: görünen ad ve/veya avatar. Avatar herkese açık
+// "avatars" kovasına kullanıcı kimliğiyle yazılır (üzerine yazılır),
+// adres kullanıcı metadata'sında tutulur.
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+export async function updateProfileAction(formData: FormData) {
+  const { getAuthUser } = await import("@/lib/auth");
+  const user = await getAuthUser();
+  if (!user) return;
+
+  const { getSupabase } = await import("@/lib/supabase");
+  const sb = getSupabase();
+  const meta: Record<string, unknown> = {};
+
+  const name = String(formData.get("name") ?? "")
+    .trim()
+    .slice(0, 40);
+  if (name) meta.display_name = name;
+
+  const avatar = formData.get("avatar");
+  if (avatar instanceof File && avatar.size > 0) {
+    const ext = AVATAR_TYPES[avatar.type];
+    if (!ext || avatar.size > AVATAR_MAX_BYTES) return;
+    const path = `${user.id}.${ext}`;
+    const { error } = await sb.storage
+      .from("avatars")
+      .upload(path, Buffer.from(await avatar.arrayBuffer()), {
+        contentType: avatar.type,
+        upsert: true,
+      });
+    if (error) return;
+    const { data } = sb.storage.from("avatars").getPublicUrl(path);
+    // Sorgu eki, tarayıcı önbelleğindeki eski fotoğrafı geçersiz kılar
+    meta.avatar_url = `${data.publicUrl}?v=${Date.now()}`;
+  }
+
+  if (Object.keys(meta).length === 0) return;
+  await sb.auth.admin.updateUserById(user.id, {
+    user_metadata: { ...user.user_metadata, ...meta },
+  });
+  revalidatePath("/", "layout");
+}
+
+export async function setThemeAction(theme: string) {
+  if (!THEMES.includes(theme as Theme)) return;
+  const store = await cookies();
+  store.set(THEME_COOKIE, theme, { maxAge: 60 * 60 * 24 * 365, path: "/" });
   revalidatePath("/", "layout");
 }

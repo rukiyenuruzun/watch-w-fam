@@ -53,7 +53,8 @@ export default async function FilmPage({
       computeOverallRisk(
         computeCategoryScores(merged, film.runtime),
         personal
-      )
+      ),
+      film.minAge
     );
     if (tier === "ok" || tier === "risky") randomTier = tier;
   }
@@ -138,6 +139,19 @@ export default async function FilmPage({
                 ★ {film.voteAverage.toFixed(1)}
               </span>
             )}
+            {/* Resmî yaş sınırı: yetişkin sınıflandırması vurgulanır */}
+            {film.certification && (
+              <span
+                title={`${film.certificationCountry}`}
+                className={`rounded-full border px-3 py-1 font-bold ${
+                  (film.minAge ?? 0) >= 18
+                    ? "border-red-500/40 bg-red-500/10 text-red-300"
+                    : "border-line bg-surface text-muted"
+                }`}
+              >
+                {film.certification}
+              </span>
+            )}
           </div>
           {film.overview && (
             <p className="text-sm leading-relaxed text-muted">
@@ -210,6 +224,8 @@ export default async function FilmPage({
           runtimeMinutes={film.runtime}
           personal={personal}
           community={community}
+          minAge={film.minAge}
+          certification={film.certification}
         />
 
         <CommentsSection

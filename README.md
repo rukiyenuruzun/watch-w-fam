@@ -1,4 +1,4 @@
-# 🎬 watch w/fam — Aileyle Ne İzlenir?
+# 🎬 FamTime — what to watch with family
 
 **"Bu film aileyle izlenir mi?"** sorusunu, film daha açılmadan cevaplayan site.
 Bir filmin öpüşme, cinsel içerik, ima ve küfür gibi hassas sahnelerini **zaman
@@ -55,3 +55,5 @@ Next.js sitesi için `npm install && npm run dev`; gereken anahtarlar
 `.env.example` dosyasında listelidir (TMDB, OpenSubtitles, Supabase).
 Veritabanı şeması `supabase/schema.sql` ile kurulur; altyazı analiz servisi
 `analyzer/` klasöründeki Python işçisidir.
+
+# Rötuş istersen üstüne: curl -fsSL https://ollama.com/install.sh | sh + ollama pull llama3.2:3b, sonra işçiyi --use-ollama ile çalıştırırsın.

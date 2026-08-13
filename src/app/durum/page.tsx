@@ -75,7 +75,8 @@ export default async function StatusPage() {
       ? { ...analysis, events: [...analysis.events, ...extra] }
       : analysis;
     const tier = verdictTier(
-      computeOverallRisk(computeCategoryScores(merged, film.runtime), personal)
+      computeOverallRisk(computeCategoryScores(merged, film.runtime), personal),
+      film.minAge
     );
     badges.set(film.tmdbId, {
       emoji: VERDICT_META[tier].emoji,

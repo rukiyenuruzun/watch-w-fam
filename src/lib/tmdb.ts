@@ -58,6 +58,58 @@ function mapListItem(m: any): Film {
   };
 }
 
+// ── Resmî yaş sınırı ────────────────────────────────────────────────
+// Türkiye sınırı varsa o, yoksa sırayla ABD/İngiltere/Almanya/İspanya.
+// Altyazıda konuşulmayan (görsel) içerik için tek dış kanıt olduğundan
+// film sayfasında rozet olarak gösterilir ve hükme taban uygular.
+const CERT_COUNTRIES = ["TR", "US", "GB", "DE", "ES", "FR"];
+
+// Harf tabanlı sınırların yaş karşılığı; sayısal olanlar ("16", "18+")
+// doğrudan ayrıştırılır.
+const CERT_AGES: Record<string, number> = {
+  G: 0,
+  TV_G: 0,
+  APTA: 0,
+  U: 0,
+  PG: 8,
+  "TV-PG": 8,
+  "PG-13": 13,
+  "TV-14": 14,
+  R: 17,
+  "NC-17": 18,
+  "TV-MA": 17,
+  X: 18,
+};
+
+export function certificationAge(code: string): number | null {
+  const key = code.trim().toUpperCase();
+  if (key in CERT_AGES) return CERT_AGES[key];
+  const num = key.match(/^(\d{1,2})\s*\+?$/);
+  return num ? Number(num[1]) : null;
+}
+
+function pickCertification(
+  releaseDates: any
+): { code: string; country: string } | null {
+  const results = (releaseDates?.results as any[]) ?? [];
+  for (const country of CERT_COUNTRIES) {
+    const entry = results.find((r) => r.iso_3166_1 === country);
+    if (!entry) continue;
+    // Aynı ülkede birden çok sürüm olabilir (sinema/dijital); yaşı
+    // belirlenebilen en yükseği alınır ki uyarı eksik kalmasın
+    const codes = ((entry.release_dates as any[]) ?? [])
+      .map((d) => String(d.certification ?? "").trim())
+      .filter(Boolean);
+    if (codes.length === 0) continue;
+    const best = codes
+      .map((code) => ({ code, age: certificationAge(code) }))
+      .filter((c) => c.age !== null)
+      .sort((a, b) => (b.age ?? 0) - (a.age ?? 0))[0];
+    if (best) return { code: best.code, country };
+  }
+  return null;
+}
+
 // TMDB sayfa başına 20 sonuç döndürür; "Daha fazla göster" ile 1..pages
 // arası sayfalar birlikte çekilir (üst sınır MAX_PAGES).
 export const MAX_PAGES = 10;
@@ -212,17 +264,21 @@ export async function getFilm(
   }
   try {
     const m = await tmdbFetch(`/movie/${tmdbId}`, locale, {
-      append_to_response: "credits",
+      append_to_response: "credits,release_dates",
     });
     const director = (m.credits?.crew as any[] | undefined)?.find(
       (c) => c.job === "Director"
     )?.name;
+    const cert = pickCertification(m.release_dates);
     return {
       ...mapListItem(m),
       genres: ((m.genres as any[]) ?? []).map((g) => g.name),
       genreIds: ((m.genres as any[]) ?? []).map((g) => g.id),
       cast: ((m.credits?.cast as any[]) ?? []).slice(0, 6).map((c) => c.name),
       director,
+      certification: cert?.code ?? null,
+      certificationCountry: cert?.country ?? null,
+      minAge: cert ? certificationAge(cert.code) : null,
     };
   } catch {
     return null;

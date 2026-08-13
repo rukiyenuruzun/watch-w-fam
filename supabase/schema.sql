@@ -89,3 +89,9 @@ alter table watchlists enable row level security;
 alter table sensitivity_profiles enable row level security;
 alter table scene_contributions enable row level security;
 alter table scene_votes enable row level security;
+
+-- Profil fotoğrafları: herkese açık "avatars" depolama kovası.
+-- Yazma yalnızca sunucudan service_role ile yapılır; politika gerekmez.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do nothing;

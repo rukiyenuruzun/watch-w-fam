@@ -17,21 +17,26 @@ import type { ContentCategory, FilmAnalysis } from "./types";
 export const SATURATION_PER_HOUR: Record<ContentCategory, number> = {
   short_kiss: 6,
   long_kiss: 4,
-  sexual_dialogue: 6,
-  sexual_implication: 8,
+  // Konuşma kategorileri bilerek geniş: bir aşk filminde saatte bir iki kez
+  // seksten söz edilmesi barı doldurmamalı, ancak konuşma gerçekten yoğun
+  // olduğunda (sex komedileri) yükselmeli. Arşiv ölçümü: aşk filmleri
+  // 1–3 puan/saat, seks komedileri 25–50 puan/saat bandında.
+  sexual_dialogue: 20,
+  sexual_implication: 12,
   explicit_sexual_content: 2.5,
   profanity: 30,
 };
 
 // Kategori risk ağırlıkları: her içerik aile yanında eşit utandırmaz.
-// Öpüşme ve küfür hafif; cinsel konuşma/ima öpüşmeden daha utandırıcı
-// (anlamamazlıktan gelmek gerekebilir); çıplaklık/seks sahnesi en yüksek.
-// İleride kişisel hassasiyet profili bu ağırlıkları kullanıcıya göre değiştirecek.
+// Öpüşme ve küfür hafif; sahnenin kendisi (çıplaklık/seks) en yüksek.
+// Konuşmak sahneyi görmekten hafiftir: "seksten söz edildi" ile "seks
+// sahnesi var" aynı kefeye konmaz — ağırlıklar uzun öpüşmeyle aynı bantta.
+// Kişisel hassasiyet profili bu ağırlıkları kullanıcıya göre çarpar.
 export const RISK_WEIGHTS: Record<ContentCategory, number> = {
   short_kiss: 0.5,
   long_kiss: 0.8,
-  sexual_dialogue: 1.3,
-  sexual_implication: 1.1,
+  sexual_dialogue: 1.0,
+  sexual_implication: 0.6,
   explicit_sexual_content: 2.2,
   profanity: 0.4,
 };
@@ -92,11 +97,41 @@ export function isPersonalized(personal?: SensitivityWeights): boolean {
 // 70–89 izlenmez, ≥90 hayatta izlenmez (Euphoria / Gaspar Noé ligi).
 export type VerdictTier = "ok" | "risky" | "nope" | "never";
 
-export function verdictTier(overall: number): VerdictTier {
-  if (overall < 50) return "ok";
-  if (overall < 70) return "risky";
-  if (overall < 90) return "nope";
-  return "never";
+// Resmî yaş sınırı bu yaştan büyükse "aileyle izlenir" denmez
+export const ADULT_MIN_AGE = 18;
+// Bu yaştan itibaren analizin eksik kalmış olabileceği uyarısı düşünülür
+export const CAUTION_MIN_AGE = 16;
+
+export function verdictTier(
+  overall: number,
+  minAge?: number | null
+): VerdictTier {
+  const tier: VerdictTier =
+    overall < 50 ? "ok" : overall < 70 ? "risky" : overall < 90 ? "nope" : "never";
+  // Analiz altyazıya dayanır ve sessiz sahneleri göremez; yapımın resmî
+  // yaş sınırı 18+ ise "aileyle izlenir" hükmü verilmez, en az "riskli"
+  // sayılır (yüzde olduğu gibi kalır, gerekçe arayüzde yazılır).
+  if (tier === "ok" && (minAge ?? 0) >= ADULT_MIN_AGE) return "risky";
+  return tier;
+}
+
+// Hüküm yaş sınırı yüzünden mi yükseltildi? (arayüzde gerekçe göstermek için)
+export function isAgeFloored(overall: number, minAge?: number | null): boolean {
+  return overall < 50 && (minAge ?? 0) >= ADULT_MIN_AGE;
+}
+
+// "Resmî sınır yetişkin diyor ama analiz neredeyse temiz" durumu: altyazıda
+// konuşulmayan görsel sahneler kaçmış olabilir, kullanıcı uyarılmalı.
+export function needsVisualCaution(
+  scores: Record<ContentCategory, number>,
+  minAge?: number | null
+): boolean {
+  if ((minAge ?? 0) < CAUTION_MIN_AGE) return false;
+  const sexual =
+    scores.sexual_dialogue +
+    scores.sexual_implication +
+    scores.explicit_sexual_content;
+  return sexual < 60;
 }
 
 // Renkler doğrulanmış durum paletinden; emoji + başlıkla birlikte kullanılır,

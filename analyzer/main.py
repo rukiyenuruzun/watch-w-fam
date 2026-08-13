@@ -23,8 +23,23 @@ ANALYSES_DIR = ROOT / "data" / "analyses"
 REQUESTS_FILE = ROOT / "data" / "analysis-requests.json"
 
 
+# Model istem şablonunu papağan gibi tekrarladığında bu metinler geri gelir;
+# açıklama diye yazılırlarsa sitede "kisa tarafsız Türkçe açıklama" görünür
+PLACEHOLDER_DESCRIPTIONS = {
+    "short neutral description",
+    "kısa tarafsız türkçe açıklama",
+    "kisa tarafsız türkçe açıklama",
+    "kisa tarafsiz turkce aciklama",
+}
+
+
 def refine_with_ollama(events: list[dict], model: str) -> list[dict]:
-    """Kalıp tabanlı cinsel konuşma/ima olaylarını dil modelinden geçirir."""
+    """Kalıp tabanlı cinsel konuşma/ima olaylarını dil modelinden geçirir.
+
+    Modele olayın açıklaması değil GERÇEK replik gönderilir; aksi hâlde model
+    kendi etiketini ("Sexually explicit dialogue") okuyup her olayı en yüksek
+    şiddetle onaylıyordu.
+    """
     if not ollama_client.available(model):
         print(f"! Ollama ya da '{model}' modeli bulunamadı, sezgisel sonuçlar korunuyor.")
         return events
@@ -33,20 +48,32 @@ def refine_with_ollama(events: list[dict], model: str) -> list[dict]:
         if e["category"] not in ("sexual_dialogue", "sexual_implication"):
             refined.append(e)
             continue
-        result = ollama_client.classify(e.get("_text", e["description"]["en"]), model)
+        text = e.get("_text")
+        if not text:
+            # Replik elde yoksa modele sorulacak bir şey yok; sezgisel sonuç kalır
+            refined.append(e)
+            continue
+        result = ollama_client.classify(text, model)
         if result is None:
             refined.append(e)
         elif result["category"] == "none":
             continue  # model reddetti, olayı at
         else:
             e["category"] = result["category"]
-            e["severity"] = int(result.get("severity", e["severity"]))
+            severity = int(result.get("severity", e["severity"]))
+            # Model her şeye 3 verme eğiliminde; sezgisel şiddetten en fazla
+            # bir kademe sapmasına izin verilir
+            e["severity"] = max(1, min(3, severity, e["severity"] + 1))
             e["confidence"] = round(float(result.get("confidence", e["confidence"])), 2)
-            if result.get("description_en") and result.get("description_tr"):
-                e["description"] = {
-                    "tr": result["description_tr"],
-                    "en": result["description_en"],
-                }
+            desc_en = (result.get("description_en") or "").strip()
+            desc_tr = (result.get("description_tr") or "").strip()
+            if (
+                desc_en
+                and desc_tr
+                and desc_en.lower() not in PLACEHOLDER_DESCRIPTIONS
+                and desc_tr.lower() not in PLACEHOLDER_DESCRIPTIONS
+            ):
+                e["description"] = {"tr": desc_tr, "en": desc_en}
             refined.append(e)
     return refined
 

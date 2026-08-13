@@ -53,7 +53,7 @@ export default async function WatchlistPage({
       personal
     );
     risks.set(film.tmdbId, overall);
-    const tier = verdictTier(overall);
+    const tier = verdictTier(overall, film.minAge);
     badges.set(film.tmdbId, {
       emoji: VERDICT_META[tier].emoji,
       label: t.verdicts[tier].title,

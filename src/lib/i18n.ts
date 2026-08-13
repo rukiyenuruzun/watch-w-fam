@@ -16,6 +16,17 @@ export const TMDB_LANG: Record<Locale, string> = {
 interface Dictionary {
   siteTagline: string;
   draftBadge: string;
+  ageRating: {
+    title: (code: string) => string;
+    floored: string;
+    caution: string;
+  };
+  settings: {
+    title: string;
+    language: string;
+    theme: string;
+    themes: { dark: string; pink: string };
+  };
   heroLines: [string, string, string];
   heroCta: string;
   heroRandom: string;
@@ -86,7 +97,7 @@ interface Dictionary {
       "2020s" | "2010s" | "2000s" | "1990s" | "1980s" | "older" | "classic",
       string
     >;
-    sorts: Record<"popular" | "rating" | "newest", string>;
+    sorts: Record<"popular" | "rating" | "newest" | "risk", string>;
     ratingAtLeast: (n: number) => string;
   };
   comments: {
@@ -143,6 +154,10 @@ interface Dictionary {
     sortByRiskHint: string;
   };
   profile: {
+    navTitle: string;
+    editName: string;
+    changePhoto: string;
+    photoTooBig: string;
     memberSince: (date: string) => string;
     statComments: (n: number) => string;
     statFilms: (n: number) => string;
@@ -192,8 +207,21 @@ interface Dictionary {
 
 export const DICTIONARIES: Record<Locale, Dictionary> = {
   tr: {
-    siteTagline: "Aileyle Ne İzlenir?",
+    siteTagline: "what to watch with family",
     draftBadge: "taslak sürüm",
+    ageRating: {
+      title: (code) => `Resmî yaş sınırı: ${code}`,
+      floored:
+        "Bu yapım yetişkinler için sınıflandırılmış. Analizimiz yalnızca altyazıyı okuduğu için konuşmasız (görsel) sahneleri göremez; bu yüzden hüküm en az \"riskli\" sayılır. Aşağıdaki yüzde yine de sadece bulunan sahnelere dayanır.",
+      caution:
+        "Bu yapım yetişkinler için sınıflandırılmış ama analizimiz çok az cinsel içerik buldu. Analiz yalnızca altyazıyı okur; konuşmasız (görsel) sahneler kaçmış olabilir. Eksik gördüğün sahneyi aşağıdan ekleyebilirsin.",
+    },
+    settings: {
+      title: "Ayarlar",
+      language: "Dil",
+      theme: "Görünüm",
+      themes: { dark: "Classic", pink: "Pink" },
+    },
     heroLines: [
       "Bu film aileyle izlenir mi?",
       "Sahneleri önceden bil.",
@@ -314,6 +342,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
         popular: "Popülerlik",
         rating: "Puan (yüksek→düşük)",
         newest: "Yıl (yeni→eski)",
+        risk: "Risk (güvenli→riskli)",
       },
       ratingAtLeast: (n) => `${n} ve üzeri`,
     },
@@ -373,6 +402,10 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       sortByRiskHint: "Analizi olmayanlar en sonda",
     },
     profile: {
+      navTitle: "Profil",
+      editName: "Adı düzenle",
+      changePhoto: "Fotoğrafı değiştir",
+      photoTooBig: "Fotoğraf en fazla 2 MB olabilir (PNG, JPG ya da WebP).",
       memberSince: (date) => `Üyelik başlangıcı: ${date}`,
       statComments: (n) => `${n} yorum`,
       statFilms: (n) => `listede ${n} film`,
@@ -450,8 +483,21 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     severities: { 1: "Hafif", 2: "Orta", 3: "Yoğun" },
   },
   en: {
-    siteTagline: "What to Watch with Family?",
+    siteTagline: "what to watch with family",
     draftBadge: "draft version",
+    ageRating: {
+      title: (code) => `Official age rating: ${code}`,
+      floored:
+        "This title is rated for adults. Our analysis only reads subtitles, so it cannot see wordless (visual) scenes — the verdict is therefore capped at \"risky\" at best. The percentage below still reflects only what we found.",
+      caution:
+        "This title is rated for adults, yet our analysis found very little sexual content. The analysis only reads subtitles, so wordless (visual) scenes may have been missed. You can add any scene you know about below.",
+    },
+    settings: {
+      title: "Settings",
+      language: "Language",
+      theme: "Appearance",
+      themes: { dark: "Classic", pink: "Pink" },
+    },
     heroLines: [
       "Can you watch it with your family?",
       "Know the scenes in advance.",
@@ -572,6 +618,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
         popular: "Popularity",
         rating: "Rating (high→low)",
         newest: "Year (new→old)",
+        risk: "Risk (safe→risky)",
       },
       ratingAtLeast: (n) => `${n} and above`,
     },
@@ -631,6 +678,10 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       sortByRiskHint: "Unanalyzed films go last",
     },
     profile: {
+      navTitle: "Profile",
+      editName: "Edit name",
+      changePhoto: "Change photo",
+      photoTooBig: "Photo must be at most 2 MB (PNG, JPG or WebP).",
       memberSince: (date) => `Member since ${date}`,
       statComments: (n) => (n === 1 ? "1 comment" : `${n} comments`),
       statFilms: (n) => (n === 1 ? "1 film in list" : `${n} films in list`),

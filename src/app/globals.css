@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Letterboxd benzeri sabit koyu tema */
+/* Letterboxd benzeri koyu tema (varsayılan) */
 :root {
   --background: #101419;
   --surface: #1a2026;
@@ -10,6 +10,43 @@
   --muted: #8fa3b5;
   --accent: #00c26e;
   --accent-2: #40bcf4;
+  /* tepe ışıması ve metin seçimi vurgu renginden türetilir */
+  --glow: rgb(0 194 110 / 0.08);
+  --selection: rgb(0 194 110 / 0.35);
+}
+
+/* Pink: tepede siyah, aşağı indikçe koyu pembeye akan zemin */
+[data-theme="pink"] {
+  --background: #0f070c;
+  --surface: #23101c;
+  --surface-2: #331728;
+  --border: #572841;
+  --foreground: #fbeaf4;
+  --muted: #c68fae;
+  --accent: #ff2d84;
+  --accent-2: #ff9ecb;
+  --glow: rgb(255 45 132 / 0.18);
+  --selection: rgb(255 45 132 / 0.4);
+}
+
+/* Gradyan viewport'a değil belgeye yayılır (fixed değil): sayfanın tepesi
+   simsiyahtır, hero'nun karartması kesintisiz kaynaşır; kaydırdıkça zemin
+   koyu pembeye akar */
+[data-theme="pink"] body {
+  background:
+    linear-gradient(
+        to bottom,
+        #0f070c 0%,
+        #170a12 30%,
+        #2e0f21 65%,
+        #4b1432 100%
+      )
+      #0f070c;
+}
+
+/* Pembe dolgulu öğeler hafif neon ışısın */
+[data-theme="pink"] .bg-accent {
+  box-shadow: 0 0 22px rgb(255 45 132 / 0.45);
 }
 
 @theme inline {
@@ -26,9 +63,9 @@
 }
 
 body {
-  /* sayfanın tepesine hafif yeşil ışıma */
+  /* sayfanın tepesine vurgu renginde hafif ışıma */
   background:
-    radial-gradient(1100px 480px at 50% -12%, rgb(0 194 110 / 0.08), transparent 65%)
+    radial-gradient(1100px 480px at 50% -12%, var(--glow), transparent 65%)
       fixed,
     var(--background);
   color: var(--foreground);
@@ -36,12 +73,16 @@ body {
 }
 
 ::selection {
-  background: rgb(0 194 110 / 0.35);
+  background: var(--selection);
 }
 
 html {
   scrollbar-width: thin;
   scrollbar-color: var(--surface-2) transparent;
+  /* html'in kendi arka planı olmazsa gövdeninki "canvas"a terfi eder ve
+     (html h-full olduğundan) viewport boyuna göre hesaplanıp belge boyunca
+     tekrar eder — Pink temanın belgeye yayılan gradyanı bantlara bölünürdü */
+  background: var(--background);
 }
 
 /* Yoğunluk barları sayfa açılışında 0'dan hedef genişliğe büyür */

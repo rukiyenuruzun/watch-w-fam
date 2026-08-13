@@ -19,6 +19,7 @@ import {
   LANGUAGES,
   LEN_RANGES,
   parseFilters,
+  sortFilmsByRisk,
 } from "@/lib/filters";
 import type { Film } from "@/lib/types";
 import { genreOptions } from "@/lib/genres";
@@ -52,12 +53,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     Math.max(1, Number(typeof sp.pages === "string" ? sp.pages : 1) || 1)
   );
 
-  // Risk filtresi seçiliyken kaynak TMDB sayfaları değil, analiz arşivinin
-  // tamamıdır: bütün analizli filmler tek seferde gelir, "daha fazla" gerekmez.
+  // Risk filtresi ya da risk sıralaması seçiliyken kaynak TMDB sayfaları
+  // değil, analiz arşivinin tamamıdır: riske göre dizmek ancak riski bilinen
+  // (analizli) filmlerle anlamlıdır; hepsi tek seferde gelir, "daha fazla"
+  // gerekmez.
   let films: Film[];
   let hasMore = false;
   let people: PersonHit[] = [];
-  if (filters.risk) {
+  if (filters.risk || filters.sort === "risk") {
     const ids = await getAnalyzedIds();
     const all = (
       await Promise.all(ids.map((id) => getFilm(id, locale)))
@@ -97,6 +100,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   // (katalog rozetleri + risk filtresi bunu kullanır) — tek toplu sorgu.
   // Doğrulanmış topluluk sahneleri de skora katılır (film sayfasıyla tutarlı).
   const tiers = new Map<number, VerdictTier>();
+  const risks = new Map<number, number>();
   const ids = films.map((f) => f.tmdbId);
   const [analyses, extras] = await Promise.all([
     getCompletedAnalyses(ids),
@@ -113,7 +117,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       computeCategoryScores(merged, film.runtime),
       personal
     );
-    tiers.set(film.tmdbId, verdictTier(overall));
+    tiers.set(film.tmdbId, verdictTier(overall, film.minAge));
+    risks.set(film.tmdbId, overall);
   }
 
   if (filters.risk) {
@@ -123,6 +128,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       return filters.risk === "analyzed" || tier === filters.risk;
     });
   }
+
+  // Risk sıralaması ancak skorlar hesaplandıktan sonra uygulanabilir
+  if (filters.sort === "risk") films = sortFilmsByRisk(films, risks);
 
   // Kartlardaki yer imi simgesi için
   const watchlistProps = (id: number) => ({
@@ -165,7 +173,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       tiers.set(
         film.tmdbId,
         verdictTier(
-          computeOverallRisk(computeCategoryScores(merged, film.runtime), personal)
+          computeOverallRisk(computeCategoryScores(merged, film.runtime), personal),
+          film.minAge
         )
       );
     }
@@ -258,7 +267,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       value: filters.minRating ? String(filters.minRating) : "",
       options: [
         all,
-        ...[6, 7, 8].map((n) => ({
+        ...[5, 6, 7, 8].map((n) => ({
           value: String(n),
           label: t.filters.ratingAtLeast(n),
         })),
@@ -291,7 +300,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       name: "sort",
       label: t.filters.sort,
       value: filters.sort,
-      options: (["popular", "rating", "newest"] as const).map((k) => ({
+      options: (["popular", "risk", "rating", "newest"] as const).map((k) => ({
         value: k,
         label: t.filters.sorts[k],
       })),

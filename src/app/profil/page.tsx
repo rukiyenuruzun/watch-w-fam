@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signOutAction } from "@/app/actions";
 import FilmCard from "@/components/FilmCard";
+import ProfileEditor from "@/components/ProfileEditor";
 import SensitivityEditor from "@/components/SensitivityEditor";
 import { getCompletedAnalyses } from "@/lib/analysis";
 import { displayName, getIdentity } from "@/lib/auth";
@@ -75,7 +75,8 @@ export default async function ProfilePage() {
       ? { ...analysis, events: [...analysis.events, ...extra] }
       : analysis;
     const tier = verdictTier(
-      computeOverallRisk(computeCategoryScores(merged, film.runtime), personal)
+      computeOverallRisk(computeCategoryScores(merged, film.runtime), personal),
+      film.minAge
     );
     badges.set(film.tmdbId, {
       emoji: VERDICT_META[tier].emoji,
@@ -92,27 +93,18 @@ export default async function ProfilePage() {
     <div className="mx-auto w-full max-w-3xl space-y-8">
       {/* Hesap kartı */}
       <section className="flex flex-wrap items-center gap-4 rounded-md border border-line bg-surface p-5">
-        {avatarUrl ? (
-          <Image
-            src={avatarUrl}
-            alt=""
-            width={64}
-            height={64}
-            // Harici avatar (Google) optimizer'a sokulmaz; Google referer ister
-            unoptimized
-            referrerPolicy="no-referrer"
-            className="size-16 rounded-full border border-line object-cover"
-          />
-        ) : (
-          <span
-            aria-hidden
-            className="flex size-16 items-center justify-center rounded-full border border-line bg-surface-2 text-2xl font-bold text-accent"
-          >
-            {name.slice(0, 1).toLocaleUpperCase(locale)}
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-bold">{name}</h1>
+        <ProfileEditor
+          name={name}
+          avatarUrl={avatarUrl}
+          initial={name.slice(0, 1).toLocaleUpperCase(locale)}
+          labels={{
+            editName: p.editName,
+            changePhoto: p.changePhoto,
+            photoTooBig: p.photoTooBig,
+            save: t.comments.save,
+            cancel: t.comments.cancel,
+          }}
+        >
           {user.email && (
             <p className="truncate text-sm text-muted">{user.email}</p>
           )}
@@ -121,7 +113,7 @@ export default async function ProfilePage() {
               {p.memberSince(formatDate(user.created_at, locale))}
             </p>
           )}
-        </div>
+        </ProfileEditor>
         <div className="flex flex-col items-end gap-2">
           <span className="rounded-full border border-line bg-surface-2 px-3 py-1 text-xs text-muted">
             {p.statComments(comments.length)} · {p.statFilms(watchlist.length)}
