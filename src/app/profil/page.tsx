@@ -1,16 +1,21 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signOutAction } from "@/app/actions";
+import CommentsPreview from "@/components/CommentsPreview";
+import FriendButton from "@/components/FriendButton";
+import InviteLink from "@/components/InviteLink";
 import FilmCard from "@/components/FilmCard";
 import ProfileEditor from "@/components/ProfileEditor";
-import SensitivityEditor from "@/components/SensitivityEditor";
 import { getCompletedAnalyses } from "@/lib/analysis";
 import { displayName, getIdentity } from "@/lib/auth";
 import { getCommentsByOwner } from "@/lib/comments";
 import { getVerifiedEventsMap } from "@/lib/contributions";
+import { getFriendIds, getIncomingRequests } from "@/lib/friends";
 import { getSensitivity } from "@/lib/sensitivity";
 import { DICTIONARIES } from "@/lib/i18n";
+import { forcedTier } from "@/lib/known-titles";
 import { getLocale } from "@/lib/locale";
+import { getProfiles, type PublicProfile } from "@/lib/profiles";
 import {
   computeCategoryScores,
   computeOverallRisk,
@@ -23,6 +28,46 @@ import { getWatchlist } from "@/lib/watchlist";
 
 // Profilde izleme listesinin yalnızca son eklenenleri gösterilir; tamamı /listem'de
 const WATCHLIST_PREVIEW = 4;
+// Yorumlarımda da başta yalnızca en yeni birkaçı görünür
+const COMMENT_PREVIEW = 3;
+
+// Arkadaş satırındaki ad + fotoğraf + profil bağlantısı
+function PersonChip({
+  profile,
+  id,
+  locale,
+}: {
+  profile: PublicProfile | undefined;
+  id: string;
+  locale: string;
+}) {
+  const name = profile?.displayName ?? "Anonim";
+  return (
+    <Link
+      href={`/kisi/${id}`}
+      className="flex min-w-0 flex-1 items-center gap-3 transition-opacity hover:opacity-80"
+    >
+      {profile?.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={profile.avatarUrl}
+          alt=""
+          aria-hidden
+          referrerPolicy="no-referrer"
+          className="size-9 shrink-0 rounded-full object-cover ring-1 ring-line"
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-sm font-bold"
+        >
+          {name.slice(0, 1).toLocaleUpperCase(locale)}
+        </span>
+      )}
+      <span className="truncate text-sm font-semibold">{name}</span>
+    </Link>
+  );
+}
 
 function formatDate(iso: string, locale: string): string {
   return new Date(iso).toLocaleDateString(
@@ -40,11 +85,16 @@ export default async function ProfilePage() {
   const t = DICTIONARIES[locale];
   const p = t.profile;
 
-  const [comments, watchlist, personal] = await Promise.all([
-    getCommentsByOwner(token),
-    getWatchlist(token),
-    getSensitivity(token),
-  ]);
+  const [comments, watchlist, personal, friendIds, incomingIds] =
+    await Promise.all([
+      getCommentsByOwner(token),
+      getWatchlist(token),
+      getSensitivity(token),
+      getFriendIds(user.id),
+      getIncomingRequests(user.id),
+    ]);
+  // Arkadaşların ve istek gönderenlerin ad/fotoğrafı tek sorguda
+  const people = await getProfiles([...friendIds, ...incomingIds]);
 
   // Yorum yapılan filmlerin başlıkları + listedeki ilk birkaç filmin kartı
   const previewEntries = watchlist.slice(0, WATCHLIST_PREVIEW);
@@ -69,14 +119,24 @@ export default async function ProfilePage() {
   ]);
   for (const film of previewFilms) {
     const analysis = analyses.get(film.tmdbId);
-    if (!analysis) continue;
+    if (!analysis) {
+      // Elle işaretlenmiş yapımlar analiz beklemeden hükmünü alır
+      const forced = forcedTier(film.tmdbId);
+      if (forced) {
+        badges.set(film.tmdbId, {
+          emoji: VERDICT_META[forced].emoji,
+          label: t.verdicts[forced].title,
+        });
+      }
+      continue;
+    }
     const extra = extras.get(film.tmdbId);
     const merged = extra
       ? { ...analysis, events: [...analysis.events, ...extra] }
       : analysis;
     const tier = verdictTier(
       computeOverallRisk(computeCategoryScores(merged, film.runtime), personal),
-      film.minAge
+      film
     );
     badges.set(film.tmdbId, {
       emoji: VERDICT_META[tier].emoji,
@@ -88,6 +148,14 @@ export default async function ProfilePage() {
     (user.user_metadata?.avatar_url as string | undefined) ??
     (user.user_metadata?.picture as string | undefined);
   const name = displayName(user);
+  const friendLabels = {
+    friends: t.friends.friends,
+    remove: t.friends.remove,
+    outgoing: t.friends.outgoing,
+    cancel: t.friends.cancel,
+    accept: t.friends.accept,
+    reject: t.friends.reject,
+  };
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-8">
@@ -114,34 +182,79 @@ export default async function ProfilePage() {
             </p>
           )}
         </ProfileEditor>
-        <div className="flex flex-col items-end gap-2">
-          <span className="rounded-full border border-line bg-surface-2 px-3 py-1 text-xs text-muted">
-            {p.statComments(comments.length)} · {p.statFilms(watchlist.length)}
-          </span>
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              className="text-xs text-muted underline transition-colors hover:text-accent"
-            >
-              {t.auth.signOut}
-            </button>
-          </form>
-        </div>
+        {/* Çıkış üst menüden buraya taşındı; sayaçlar zaten aşağıdaki
+            bölüm başlıklarında yazdığı için kartta tekrar edilmiyor */}
+        <form action={signOutAction} className="ml-auto">
+          <button
+            type="submit"
+            className="cursor-pointer rounded-md border border-line bg-surface-2 px-4 py-2 text-xs font-semibold text-muted transition hover:border-accent hover:text-accent active:scale-95"
+          >
+            {t.auth.signOut}
+          </button>
+        </form>
       </section>
 
-      {/* Hassasiyet profili */}
-      <section>
-        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">
-          {p.sensitivityTitle}
+      {/* Arkadaşlar */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+          {t.friends.title} ({friendIds.length})
         </h2>
-        <p className="mb-3 text-xs leading-relaxed text-muted">
-          {p.sensitivityNote}
-        </p>
-        <SensitivityEditor
-          weights={personal}
-          categoryLabels={t.categories}
-          levelLabels={p.sensitivityLevels}
-        />
+
+        <div className="space-y-2 rounded-md border border-line bg-surface p-4">
+          <p className="text-sm font-semibold">{t.friends.inviteTitle}</p>
+          <p className="text-xs leading-relaxed text-muted">
+            {t.friends.inviteNote}
+          </p>
+          <InviteLink
+            path={`/davet/${user.id}`}
+            copyLabel={t.friends.copyLink}
+            copiedLabel={t.friends.copied}
+          />
+        </div>
+
+        {incomingIds.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">
+              {t.friends.requests} ({incomingIds.length})
+            </h3>
+            <ul className="space-y-2">
+              {incomingIds.map((fid) => (
+                <li
+                  key={fid}
+                  className="flex flex-wrap items-center gap-3 rounded-md border border-accent/30 bg-accent/5 p-3"
+                >
+                  <PersonChip
+                    profile={people.get(fid)}
+                    id={fid}
+                    locale={locale}
+                  />
+                  <FriendButton
+                    otherId={fid}
+                    status="incoming"
+                    labels={friendLabels}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {friendIds.length === 0 ? (
+          <p className="rounded-md border border-line bg-surface p-5 text-center text-sm text-muted">
+            {t.friends.empty}
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {friendIds.map((fid) => (
+              <li
+                key={fid}
+                className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface p-3"
+              >
+                <PersonChip profile={people.get(fid)} id={fid} locale={locale} />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* İzleme listesi önizlemesi */}
@@ -192,7 +305,12 @@ export default async function ProfilePage() {
             {p.commentsEmpty}
           </p>
         ) : (
-          <ul className="space-y-3">
+          <CommentsPreview
+            previewCount={COMMENT_PREVIEW}
+            listClassName="space-y-3"
+            showAllLabel={t.comments.showAll(comments.length)}
+            showLessLabel={t.comments.showLess}
+          >
             {comments.map((c) => {
               const film = films.get(c.tmdbId);
               return (
@@ -228,7 +346,7 @@ export default async function ProfilePage() {
                 </li>
               );
             })}
-          </ul>
+          </CommentsPreview>
         )}
       </section>
     </div>

@@ -4,6 +4,7 @@ import { getCompletedAnalyses } from "@/lib/analysis";
 import { getIdentity } from "@/lib/auth";
 import { getVerifiedEventsMap } from "@/lib/contributions";
 import { DICTIONARIES } from "@/lib/i18n";
+import { forcedTier } from "@/lib/known-titles";
 import { getLocale } from "@/lib/locale";
 import {
   computeCategoryScores,
@@ -43,7 +44,17 @@ export default async function WatchlistPage({
   ]);
   for (const film of films) {
     const analysis = analyses.get(film.tmdbId);
-    if (!analysis) continue;
+    if (!analysis) {
+      // Elle işaretlenmiş yapımlar analiz beklemeden hükmünü alır
+      const forced = forcedTier(film.tmdbId);
+      if (forced) {
+        badges.set(film.tmdbId, {
+          emoji: VERDICT_META[forced].emoji,
+          label: t.verdicts[forced].title,
+        });
+      }
+      continue;
+    }
     const extra = extras.get(film.tmdbId);
     const merged = extra
       ? { ...analysis, events: [...analysis.events, ...extra] }
@@ -53,7 +64,7 @@ export default async function WatchlistPage({
       personal
     );
     risks.set(film.tmdbId, overall);
-    const tier = verdictTier(overall, film.minAge);
+    const tier = verdictTier(overall, film);
     badges.set(film.tmdbId, {
       emoji: VERDICT_META[tier].emoji,
       label: t.verdicts[tier].title,

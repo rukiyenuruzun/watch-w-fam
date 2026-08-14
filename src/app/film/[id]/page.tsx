@@ -2,9 +2,11 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import AnalysisPanel from "@/components/AnalysisPanel";
 import CommentsSection from "@/components/CommentsSection";
+import PosterLightbox from "@/components/PosterLightbox";
 import WatchlistToggle from "@/components/WatchlistToggle";
 import { getAnalysis } from "@/lib/analysis";
 import { getIdentity } from "@/lib/auth";
+import { getFriendIds } from "@/lib/friends";
 import { getContributions, toVerifiedEvents } from "@/lib/contributions";
 import { DICTIONARIES } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
@@ -33,11 +35,13 @@ export default async function FilmPage({
   if (!film) notFound();
 
   const analysis = await getAnalysis(tmdbId);
-  const { token: myToken } = await getIdentity();
+  const { token: myToken, user } = await getIdentity();
+  // Arkadaş kimlikleri: sahne katkılarında güven, yorumlarda öncelik
+  const friendIds = user ? await getFriendIds(user.id) : [];
   const [watchlistIds, personal, community] = await Promise.all([
     getWatchlistIds(myToken),
     getSensitivity(myToken),
-    getContributions(tmdbId, myToken),
+    getContributions(tmdbId, myToken, friendIds),
   ]);
   const inWatchlist = watchlistIds.has(tmdbId);
 
@@ -54,7 +58,7 @@ export default async function FilmPage({
         computeCategoryScores(merged, film.runtime),
         personal
       ),
-      film.minAge
+      film
     );
     if (tier === "ok" || tier === "risky") randomTier = tier;
   }
@@ -89,18 +93,26 @@ export default async function FilmPage({
           }`}
         >
           <div className="flex flex-col gap-6 sm:flex-row sm:gap-8">
-        <div className="relative aspect-2/3 w-44 shrink-0 self-center overflow-hidden rounded-md bg-surface-2 shadow-2xl shadow-black/50 ring-1 ring-white/10 sm:w-64 sm:self-start">
+        <div className="w-44 shrink-0 self-center sm:w-64 sm:self-start">
           {film.posterPath ? (
-            <Image
-              src={`${TMDB_IMAGE_BASE}/w342${film.posterPath}`}
+            <PosterLightbox
+              src={`${TMDB_IMAGE_BASE}/w780${film.posterPath}`}
               alt={film.title}
-              fill
-              sizes="256px"
-              priority
-              className="object-cover"
-            />
+              closeLabel={t.closePoster}
+            >
+              <div className="relative aspect-2/3 w-full overflow-hidden rounded-md bg-surface-2 shadow-2xl shadow-black/50 ring-1 ring-white/10">
+                <Image
+                  src={`${TMDB_IMAGE_BASE}/w342${film.posterPath}`}
+                  alt={film.title}
+                  fill
+                  sizes="256px"
+                  priority
+                  className="object-cover"
+                />
+              </div>
+            </PosterLightbox>
           ) : (
-            <div className="flex h-full items-center justify-center p-3 text-center text-sm text-muted">
+            <div className="flex aspect-2/3 w-full items-center justify-center rounded-md bg-surface-2 p-3 text-center text-sm text-muted shadow-2xl shadow-black/50 ring-1 ring-white/10">
               {film.title}
             </div>
           )}
@@ -226,12 +238,18 @@ export default async function FilmPage({
           community={community}
           minAge={film.minAge}
           certification={film.certification}
+          strictestAge={film.strictestAge}
+          strictestCertification={film.strictestCertification}
+          strictestCountry={film.strictestCountry}
+          genreIds={film.genreIds}
+          director={film.director}
         />
 
         <CommentsSection
           tmdbId={tmdbId}
           locale={locale}
           hasAnalysis={analysis.status === "completed"}
+          friendIds={friendIds}
         />
       </div>
     </div>

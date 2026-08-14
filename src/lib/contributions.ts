@@ -21,6 +21,8 @@ export interface SceneContribution {
   up: number;
   down: number;
   net: number; // up - down
+  // Arkadaşının eklediği sahne oy beklemeden güvenilir sayılır
+  byFriend: boolean;
   myVote: -1 | 0 | 1; // görüntüleyenin oyu
   mine: boolean; // görüntüleyen eklemiş mi (silme yetkisi)
 }
@@ -39,8 +41,11 @@ interface ContributionRow {
 
 export async function getContributions(
   tmdbId: number,
-  viewerToken: string | undefined
+  viewerToken: string | undefined,
+  // Girişli ziyaretçinin arkadaşları; onların katkıları oy beklemez
+  friendIds: string[] = []
 ): Promise<SceneContribution[]> {
+  const friends = new Set(friendIds);
   const sb = getSupabase();
   const { data: rows, error } = await sb
     .from("scene_contributions")
@@ -84,6 +89,7 @@ export async function getContributions(
         net: t.up - t.down,
         myVote: t.my,
         mine: Boolean(viewerToken && r.owner_token === viewerToken),
+        byFriend: Boolean(r.owner_token && friends.has(r.owner_token)),
       };
     })
     .filter((c) => c.net > HIDE_BELOW_NET);
@@ -95,7 +101,8 @@ export function toVerifiedEvents(
   community: SceneContribution[]
 ): ContentEvent[] {
   return community
-    .filter((c) => c.net >= VERIFY_AT_NET)
+    // Oyla doğrulanmış VEYA arkadaşının eklediği sahneler skora katılır
+    .filter((c) => c.net >= VERIFY_AT_NET || c.byFriend)
     .map((c) => ({
       id: c.id,
       tmdbId: c.tmdbId,

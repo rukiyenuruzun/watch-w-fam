@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Hanken_Grotesk } from "next/font/google";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
-import { signOutAction } from "@/app/actions";
 import ScrollMemory from "@/components/ScrollMemory";
-import SettingsMenu from "@/components/SettingsMenu";
-import { getAuthUser } from "@/lib/auth";
+import { displayName, getAuthUser } from "@/lib/auth";
 import { DICTIONARIES } from "@/lib/i18n";
 import { getLocale } from "@/lib/locale";
 import { getTheme } from "@/lib/theme-server";
@@ -37,6 +36,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const locale = await getLocale();
   const t = DICTIONARIES[locale];
   const [user, theme] = await Promise.all([getAuthUser(), getTheme()]);
+  // Üst bardaki profil bağlantısında kullanıcının fotoğrafı görünür
+  const avatarUrl =
+    (user?.user_metadata?.avatar_url as string | undefined) ??
+    (user?.user_metadata?.picture as string | undefined);
 
   return (
     <html
@@ -71,23 +74,31 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </span>
 
             <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
-              <Link href="/" className="flex flex-col items-center leading-tight">
+              <Link href="/" className="flex items-center gap-2 leading-tight">
+                {/* 32px'te pano zeminle karışıyordu; 40px'te klaket ve iki
+                    figür seçiliyor, "FamTime" yazısıyla da dengeli duruyor */}
+                <Image
+                  src="/logo.png"
+                  alt=""
+                  aria-hidden
+                  width={40}
+                  height={40}
+                  priority
+                  className="size-10 shrink-0"
+                />
                 <span className="text-xl font-black tracking-tight">
-                  <span aria-hidden className="mr-1.5">🎬</span>
                   Fam
                   <span className="bg-gradient-to-r from-accent to-accent-2 bg-clip-text text-transparent">
                     Time
                   </span>
                 </span>
-                {/* Slogan iki dilde de aynı (marka) */}
-                <span className="text-[10px] font-semibold lowercase tracking-[0.18em] text-muted">
-                  what to watch with family
-                </span>
               </Link>
 
               <nav className="flex items-center gap-6 text-[13px] font-extrabold uppercase tracking-[0.08em]">
-                {/* Girişlide liste profilden ulaşılır; bu kısayol anonim ziyaretçi için */}
-                {!user && (
+                {/* İzleme listesi hesaba bağlı; girişsiz ziyaretçiye
+                    gösterilmiyor. Durum sayfası üst bardan çıkıp ayarların
+                    içine taşındı — günlük kullanımda gereken bir şey değil */}
+                {user && (
                   <Link
                     href="/listem"
                     className="text-muted transition-colors hover:text-foreground"
@@ -96,29 +107,41 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   </Link>
                 )}
                 <Link
-                  href="/durum"
-                  className="text-muted transition-colors hover:text-foreground"
+                  href="/ayarlar"
+                  className="flex items-center gap-1.5 text-muted transition-colors hover:text-foreground"
                 >
-                  {t.statusPage.navTitle}
+                  <span aria-hidden>⚙️</span>
+                  <span>{t.settings.title}</span>
                 </Link>
+                {/* Girişliyken yalnızca "Profil"; çıkış menüde değil profil
+                    sayfasının içinde (üst bar sade kalsın) */}
                 {user ? (
-                  <>
-                    <Link
-                      href="/profil"
-                      className="flex items-center gap-1.5 text-accent transition-opacity hover:opacity-80"
-                    >
-                      <span aria-hidden>👤</span>
-                      <span>{t.profile.navTitle}</span>
-                    </Link>
-                    <form action={signOutAction}>
-                      <button
-                        type="submit"
-                        className="cursor-pointer font-extrabold uppercase tracking-[0.08em] text-muted transition-colors hover:text-foreground"
+                  <Link
+                    href="/profil"
+                    className="flex items-center gap-2 text-accent transition-opacity hover:opacity-80"
+                  >
+                    {/* Profil fotoğrafı; yoksa adın baş harfi. next/image
+                        kullanılmıyor çünkü avatar Supabase ya da Google'da
+                        durabiliyor, ikisi de remotePatterns'te tanımlı değil */}
+                    {avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={avatarUrl}
+                        alt=""
+                        aria-hidden
+                        referrerPolicy="no-referrer"
+                        className="size-6 shrink-0 rounded-full object-cover ring-1 ring-line"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden
+                        className="grid size-6 shrink-0 place-items-center rounded-full bg-surface-2 text-[11px] font-bold text-foreground"
                       >
-                        {t.auth.signOut}
-                      </button>
-                    </form>
-                  </>
+                        {displayName(user).slice(0, 1).toLocaleUpperCase(locale)}
+                      </span>
+                    )}
+                    <span>{t.profile.navTitle}</span>
+                  </Link>
                 ) : (
                   <Link
                     href="/giris"
@@ -130,16 +153,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               </nav>
             </div>
 
-            <div className="absolute right-4 sm:right-6 lg:right-10">
-              <SettingsMenu
-                current={locale}
-                title={t.settings.title}
-                languageLabel={t.settings.language}
-                theme={theme}
-                themeLabel={t.settings.theme}
-                themeNames={t.settings.themes}
-              />
-            </div>
           </div>
         </header>
         <main className="w-full flex-1 px-4 py-8 sm:px-6 lg:px-10">

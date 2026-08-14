@@ -18,14 +18,18 @@ interface Dictionary {
   draftBadge: string;
   ageRating: {
     title: (code: string) => string;
+    titleCountry: (code: string, country: string) => string;
     floored: string;
     caution: string;
   };
+  knownTitle: { title: string; body: string; bodyNoScore: string };
   settings: {
     title: string;
     language: string;
     theme: string;
     themes: { dark: string; pink: string };
+    sensitivityPrivate: string;
+    statusNote: string;
   };
   heroLines: [string, string, string];
   heroCta: string;
@@ -46,6 +50,7 @@ interface Dictionary {
   minutes: string;
   director: string;
   cast: string;
+  closePoster: string;
   analysisTitle: string;
   noAnalysis: string;
   requestAnalysis: string;
@@ -125,6 +130,8 @@ interface Dictionary {
     save: string;
     edited: string;
     cta: string;
+    showAll: (n: number) => string;
+    showLess: string;
   };
   auth: {
     navSignIn: string;
@@ -168,6 +175,25 @@ interface Dictionary {
     sensitivityNote: string;
     sensitivityLevels: Record<"off" | "normal" | "sensitive" | "very", string>;
   };
+  friends: {
+    navTitle: string;
+    title: string;
+    inviteTitle: string;
+    inviteNote: string;
+    copyLink: string;
+    copied: string;
+    empty: string;
+    requests: string;
+    friends: string;
+    remove: string;
+    outgoing: string;
+    cancel: string;
+    accept: string;
+    reject: string;
+    theirComments: string;
+    stats: (comments: number, films: number) => string;
+    onFilm: string;
+  };
   personalizedNote: string;
   randomPick: {
     safe: string;
@@ -179,6 +205,8 @@ interface Dictionary {
     familyComedies: string;
     cleanClassics: string;
     seeAll: string;
+    prev: string;
+    next: string;
   };
   community: {
     sectionTitle: string;
@@ -211,16 +239,27 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     draftBadge: "taslak sürüm",
     ageRating: {
       title: (code) => `Resmî yaş sınırı: ${code}`,
+      titleCountry: (code, country) =>
+        `Resmî yaş sınırı: ${code} (${country})`,
       floored:
-        "Bu yapım yetişkinler için sınıflandırılmış. Analizimiz yalnızca altyazıyı okuduğu için konuşmasız (görsel) sahneleri göremez; bu yüzden hüküm en az \"riskli\" sayılır. Aşağıdaki yüzde yine de sadece bulunan sahnelere dayanır.",
+        "Bu yapımın resmî yaş sınırı yüksek. Analizimiz yalnızca altyazıyı okuduğu için konuşmasız (görsel) sahneleri göremez; bu yüzden hüküm en az \"riskli\" sayılır. Aşağıdaki yüzde yine de sadece bulunan sahnelere dayanır. Ülkeler aynı filme farklı sınır verebiliyor, biz en katı olanı esas alıyoruz.",
       caution:
-        "Bu yapım yetişkinler için sınıflandırılmış ama analizimiz çok az cinsel içerik buldu. Analiz yalnızca altyazıyı okur; konuşmasız (görsel) sahneler kaçmış olabilir. Eksik gördüğün sahneyi aşağıdan ekleyebilirsin.",
+        "Bu yapımın resmî yaş sınırı yüksek ama analizimiz çok az cinsel içerik buldu. Analiz yalnızca altyazıyı okur; konuşmasız (görsel) sahneler kaçmış olabilir. Eksik gördüğün sahneyi aşağıdan ekleyebilirsin.",
+    },
+    knownTitle: {
+      title: "Bu yapım elle işaretlendi",
+      body: "Bu yapımda cinsel sahneler konuşmaya neredeyse hiç yansımıyor, o yüzden altyazı analizi düşük puan veriyor. İçeriği bilindiği için hüküm elle konuldu; aşağıdaki yüzde yine yalnızca altyazıda bulunanları gösterir.",
+      bodyNoScore:
+        "Bu yapımda cinsel sahneler konuşmaya neredeyse hiç yansımadığı için altyazı analizi tek başına yetersiz kalıyor. İçeriği bilindiğinden hüküm elle konuldu; analiz beklemeye gerek yok.",
     },
     settings: {
       title: "Ayarlar",
       language: "Dil",
       theme: "Görünüm",
       themes: { dark: "Classic", pink: "Pink" },
+      sensitivityPrivate:
+        "Bu ayar yalnızca sana görünür; herkese açık profilinde yer almaz.",
+      statusNote: "Analiz kuyruğu ve günlük indirme kotası",
     },
     heroLines: [
       "Bu film aileyle izlenir mi?",
@@ -246,6 +285,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     minutes: "dk",
     director: "Yönetmen",
     cast: "Oyuncular",
+    closePoster: "Afişi kapat",
     analysisTitle: "İçerik Analizi",
     noAnalysis: "Bu film için henüz içerik analizi bulunmuyor.",
     requestAnalysis: "Analiz talep et",
@@ -372,9 +412,11 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       save: "Kaydet",
       edited: "düzenlendi",
       cta: "Yorum yaz",
+      showAll: (n) => `Tümünü gör (${n})`,
+      showLess: "Daha az göster",
     },
     auth: {
-      navSignIn: "Giriş yap",
+      navSignIn: "Kayıt ol / Giriş yap",
       signOut: "Çıkış",
       title: "Giriş yap / Kayıt ol",
       note: "Giriş zorunlu değil — ama girersen izleme listen ve yorumların hesabına bağlanır, her cihazdan erişirsin. Tarayıcıdaki mevcut listen de hesabına taşınır.",
@@ -423,6 +465,26 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
         very: "Çok hassas",
       },
     },
+    friends: {
+      navTitle: "Arkadaşlar",
+      title: "Arkadaşlarım",
+      inviteTitle: "Davet linkim",
+      inviteNote:
+        "Bu linki gönderdiğin kişi tıklayınca sana arkadaşlık isteği düşer; onaylayınca arkadaş olursunuz.",
+      copyLink: "Linki kopyala",
+      copied: "Kopyalandı ✓",
+      empty: "Henüz arkadaşın yok. Davet linkini paylaşarak başlayabilirsin.",
+      requests: "Gelen istekler",
+      friends: "Arkadaşsınız",
+      remove: "Arkadaşlıktan çıkar",
+      outgoing: "İstek gönderildi",
+      cancel: "İsteği geri al",
+      accept: "Kabul et",
+      reject: "Yoksay",
+      theirComments: "Yorumları",
+      stats: (c, f) => `${c} yorum · listesinde ${f} film`,
+      onFilm: "Arkadaşların",
+    },
     personalizedNote: "⚙️ Hassasiyet profiline göre hesaplandı",
     randomPick: {
       safe: "Şansına bu çıktı — hükmü temiz: aileyle rahat izlenir 👌",
@@ -434,6 +496,8 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       familyComedies: "Ailece izlenebilir komediler",
       cleanClassics: "Temiz klasikler",
       seeAll: "Tümünü gör →",
+      prev: "Geri kaydır",
+      next: "İleri kaydır",
     },
     community: {
       sectionTitle: "Topluluk sahneleri",
@@ -487,16 +551,27 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     draftBadge: "draft version",
     ageRating: {
       title: (code) => `Official age rating: ${code}`,
+      titleCountry: (code, country) =>
+        `Official age rating: ${code} (${country})`,
       floored:
-        "This title is rated for adults. Our analysis only reads subtitles, so it cannot see wordless (visual) scenes — the verdict is therefore capped at \"risky\" at best. The percentage below still reflects only what we found.",
+        "This title carries a high official age rating. Our analysis only reads subtitles, so it cannot see wordless (visual) scenes — the verdict is therefore capped at \"risky\" at best. The percentage below still reflects only what we found. Countries rate the same film differently; we go by the strictest one.",
       caution:
-        "This title is rated for adults, yet our analysis found very little sexual content. The analysis only reads subtitles, so wordless (visual) scenes may have been missed. You can add any scene you know about below.",
+        "This title carries a high official age rating, yet our analysis found very little sexual content. The analysis only reads subtitles, so wordless (visual) scenes may have been missed. You can add any scene you know about below.",
+    },
+    knownTitle: {
+      title: "Manually flagged title",
+      body: "The sexual content here barely surfaces in the dialogue, so subtitle analysis scores them low. Because the content is well known, the verdict was set by hand; the percentage below still reflects only what the subtitles revealed.",
+      bodyNoScore:
+        "The sexual content here barely surfaces in the dialogue, so subtitle analysis alone is not enough. Because the content is well known, the verdict was set by hand — no analysis needed.",
     },
     settings: {
       title: "Settings",
       language: "Language",
       theme: "Appearance",
       themes: { dark: "Classic", pink: "Pink" },
+      sensitivityPrivate:
+        "Only you can see this setting; it never appears on your public profile.",
+      statusNote: "Analysis queue and daily download quota",
     },
     heroLines: [
       "Can you watch it with your family?",
@@ -522,6 +597,7 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
     minutes: "min",
     director: "Director",
     cast: "Cast",
+    closePoster: "Close poster",
     analysisTitle: "Content Analysis",
     noAnalysis: "No content analysis available for this film yet.",
     requestAnalysis: "Request analysis",
@@ -648,9 +724,11 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       save: "Save",
       edited: "edited",
       cta: "Write a review",
+      showAll: (n) => `See all (${n})`,
+      showLess: "Show less",
     },
     auth: {
-      navSignIn: "Sign in",
+      navSignIn: "Sign up / Sign in",
       signOut: "Sign out",
       title: "Sign in / Sign up",
       note: "Signing in is optional — but your watchlist and reviews get tied to your account, reachable from any device. Your current in-browser list is migrated to the account too.",
@@ -699,6 +777,26 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
         very: "Very sensitive",
       },
     },
+    friends: {
+      navTitle: "Friends",
+      title: "My friends",
+      inviteTitle: "My invite link",
+      inviteNote:
+        "Whoever opens this link sends you a friend request; once you accept, you are friends.",
+      copyLink: "Copy link",
+      copied: "Copied ✓",
+      empty: "No friends yet. Share your invite link to get started.",
+      requests: "Incoming requests",
+      friends: "You are friends",
+      remove: "Remove friend",
+      outgoing: "Request sent",
+      cancel: "Undo request",
+      accept: "Accept",
+      reject: "Ignore",
+      theirComments: "Their reviews",
+      stats: (c, f) => `${c} reviews · ${f} films in list`,
+      onFilm: "Your friends",
+    },
     personalizedNote: "⚙️ Computed with your sensitivity profile",
     randomPick: {
       safe: "Your lucky pick — clean verdict: safe to watch with family 👌",
@@ -710,6 +808,8 @@ export const DICTIONARIES: Record<Locale, Dictionary> = {
       familyComedies: "Family-friendly comedies",
       cleanClassics: "Clean classics",
       seeAll: "See all →",
+      prev: "Scroll left",
+      next: "Scroll right",
     },
     community: {
       sectionTitle: "Community scenes",

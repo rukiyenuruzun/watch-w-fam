@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { acceptFriendship, removeFriendship } from "@/lib/friends";
 import { cookies } from "next/headers";
 import { removeRequest, requestAnalysis } from "@/lib/analysis";
 import {
@@ -171,6 +172,9 @@ export async function mergeAnonDataAction() {
   const user = await getAuthUser();
   if (!user) return;
   await mergeAnonData(user);
+  // Herkese açık profil ayna tablosu girişte tazelenir
+  const { syncProfile } = await import("@/lib/profiles");
+  await syncProfile(user);
   revalidatePath("/", "layout");
 }
 
@@ -261,9 +265,12 @@ export async function updateProfileAction(formData: FormData) {
   }
 
   if (Object.keys(meta).length === 0) return;
-  await sb.auth.admin.updateUserById(user.id, {
+  const { data: updated } = await sb.auth.admin.updateUserById(user.id, {
     user_metadata: { ...user.user_metadata, ...meta },
   });
+  // Ad/fotoğraf değişti: herkese açık profil de tazelensin
+  const { syncProfile } = await import("@/lib/profiles");
+  if (updated?.user) await syncProfile(updated.user);
   revalidatePath("/", "layout");
 }
 
@@ -271,5 +278,25 @@ export async function setThemeAction(theme: string) {
   if (!THEMES.includes(theme as Theme)) return;
   const store = await cookies();
   store.set(THEME_COOKIE, theme, { maxAge: 60 * 60 * 24 * 365, path: "/" });
+  revalidatePath("/", "layout");
+}
+
+// ── Arkadaşlık ────────────────────────────────────────────────────────
+// Hepsi girişli kullanıcı gerektirir; kimlik istemciden değil oturumdan
+// okunur, yani başkasının adına işlem yapılamaz.
+
+export async function acceptFriendAction(requesterId: string) {
+  const { getAuthUser } = await import("@/lib/auth");
+  const user = await getAuthUser();
+  if (!user) return;
+  await acceptFriendship(user.id, requesterId);
+  revalidatePath("/", "layout");
+}
+
+export async function removeFriendAction(otherId: string) {
+  const { getAuthUser } = await import("@/lib/auth");
+  const user = await getAuthUser();
+  if (!user) return;
+  await removeFriendship(user.id, otherId);
   revalidatePath("/", "layout");
 }

@@ -91,6 +91,11 @@ SEXUAL_DIALOGUE: list[tuple[re.Pattern, int]] = [
         # ── açıkça seksten söz etme ──
         (r"\bhav(e|ing) sex\b", 2),
         (r"\bhad sex\b", 2),
+        # "slept with X" arşivde 12 kez geçiyor ve hepsi cinsel; buna karşılık
+        # "sleep with me" çoğunlukla masum ("Can you sleep with me?" — çocuk
+        # yanında yatmak istiyor), o yüzden yalnızca geçmiş zamanı sayıyoruz
+        (r"\bslept with\b", 2),
+        (r"\btake (your|my|his|her|their) clothes off\b", 2),
         # "sex" dönem filmlerinde "cinsiyet" demek: "your own sex",
         # "the fair sex", "the entire sex" — bunlar elenir
         (
@@ -123,6 +128,9 @@ SEXUAL_DIALOGUE: list[tuple[re.Pattern, int]] = [
         (r"\bnaked\b(?! eye)", 1),
         (r"\bnude\b", 1),
         (r"\bvirgin\b", 1),
+        # Dar tutuldu: yalın "touch me" arşivde 78 kez geçiyor ve neredeyse
+        # tamamı şiddet/itiraz ("Don't fucking touch me!"), cinsel değil
+        (r"\b(never|ever) been touched\b", 1),
         (r"\bseduc\w*", 1),
         # "make out with" şart: dönem dilinde "make out" = anlamak, seçmek
         (r"\bmak(e|ing) out with\b", 1),

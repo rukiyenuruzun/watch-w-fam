@@ -1,5 +1,6 @@
 import { addCommentAction } from "@/app/actions";
 import CommentItem from "@/components/CommentItem";
+import CommentsPreview from "@/components/CommentsPreview";
 import { getIdentity } from "@/lib/auth";
 import { getComments } from "@/lib/comments";
 import { DICTIONARIES, type Locale } from "@/lib/i18n";
@@ -9,7 +10,11 @@ interface Props {
   tmdbId: number;
   locale: Locale;
   hasAnalysis: boolean; // "% doğru mu" oyu yalnızca analizli filmlerde sorulur
+  friendIds?: string[]; // arkadaşların yorumları listenin başına alınır
 }
+
+// Değerlendirmelerin başta yalnızca en yenileri görünür
+const COMMENT_PREVIEW = 3;
 
 const VOTE_COLORS: Record<RiskVote, string> = {
   lower: "#0ca30c",
@@ -17,9 +22,23 @@ const VOTE_COLORS: Record<RiskVote, string> = {
   higher: "#d03b3b",
 };
 
-export default async function CommentsSection({ tmdbId, locale, hasAnalysis }: Props) {
+export default async function CommentsSection({
+  tmdbId,
+  locale,
+  hasAnalysis,
+  friendIds = [],
+}: Props) {
   const t = DICTIONARIES[locale].comments;
-  const comments = await getComments(tmdbId);
+  const all = await getComments(tmdbId);
+  // Arkadaşının görüşü yabancınınkinden önce gelir; her iki grup kendi
+  // içinde yeniden eskiye sıralı kalır (getComments zaten öyle döndürüyor)
+  const friends = new Set(friendIds);
+  const isFriend = (ownerToken?: string) =>
+    Boolean(ownerToken && friends.has(ownerToken));
+  const comments = [
+    ...all.filter((c) => isFriend(c.ownerToken)),
+    ...all.filter((c) => !isFriend(c.ownerToken)),
+  ];
   // Ziyaretçinin kimliği (girişliyse hesap, değilse anonim çerez);
   // kendi yorumlarında düzenle/sil çıkar
   const { token: myToken, user } = await getIdentity();
@@ -78,7 +97,11 @@ export default async function CommentsSection({ tmdbId, locale, hasAnalysis }: P
           {t.empty}
         </p>
       ) : (
-        <ol className="space-y-2">
+        <CommentsPreview
+          previewCount={COMMENT_PREVIEW}
+          showAllLabel={t.showAll(comments.length)}
+          showLessLabel={t.showLess}
+        >
           {comments.map((c) => (
             <CommentItem
               key={c.id}
@@ -114,7 +137,7 @@ export default async function CommentsSection({ tmdbId, locale, hasAnalysis }: P
               }}
             />
           ))}
-        </ol>
+        </CommentsPreview>
       )}
 
       <form

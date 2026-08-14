@@ -88,59 +88,124 @@ export function certificationAge(code: string): number | null {
   return num ? Number(num[1]) : null;
 }
 
-function pickCertification(
+// Ülke başına yaşı belirlenebilen en yüksek sınır (aynı ülkede sinema/dijital
+// gibi birden çok sürüm olabilir, uyarı eksik kalmasın diye en yükseği alınır)
+function certificationsByCountry(
   releaseDates: any
-): { code: string; country: string } | null {
+): Map<string, { code: string; age: number }> {
   const results = (releaseDates?.results as any[]) ?? [];
+  const map = new Map<string, { code: string; age: number }>();
   for (const country of CERT_COUNTRIES) {
     const entry = results.find((r) => r.iso_3166_1 === country);
     if (!entry) continue;
-    // Aynı ülkede birden çok sürüm olabilir (sinema/dijital); yaşı
-    // belirlenebilen en yükseği alınır ki uyarı eksik kalmasın
-    const codes = ((entry.release_dates as any[]) ?? [])
+    const best = ((entry.release_dates as any[]) ?? [])
       .map((d) => String(d.certification ?? "").trim())
-      .filter(Boolean);
-    if (codes.length === 0) continue;
-    const best = codes
+      .filter(Boolean)
       .map((code) => ({ code, age: certificationAge(code) }))
-      .filter((c) => c.age !== null)
-      .sort((a, b) => (b.age ?? 0) - (a.age ?? 0))[0];
-    if (best) return { code: best.code, country };
+      .filter((c): c is { code: string; age: number } => c.age !== null)
+      .sort((a, b) => b.age - a.age)[0];
+    if (best) map.set(country, best);
+  }
+  return map;
+}
+
+// Rozette gösterilen sınır: CERT_COUNTRIES sırasındaki ilk ülke (TR varsa TR)
+function pickCertification(
+  byCountry: Map<string, { code: string; age: number }>
+): { code: string; country: string } | null {
+  for (const country of CERT_COUNTRIES) {
+    const hit = byCountry.get(country);
+    if (hit) return { code: hit.code, country };
   }
   return null;
 }
 
+// Hüküm için kullanılan sınır: ülkeler arasındaki EN KATI olan. Ülkeler aynı
+// filme çok farklı yaşlar verebiliyor (After: US 13, FR 16) ve altyazıdan
+// görünmeyen görsel içerik çoğu zaman yalnızca katı ülkenin sınırına yansır.
+function pickStrictest(
+  byCountry: Map<string, { code: string; age: number }>
+): { code: string; country: string; age: number } | null {
+  let best: { code: string; country: string; age: number } | null = null;
+  for (const [country, hit] of byCountry) {
+    if (!best || hit.age > best.age) best = { ...hit, country };
+  }
+  return best;
+}
+
 // TMDB sayfa başına 20 sonuç döndürür; "Daha fazla göster" ile 1..pages
 // arası sayfalar birlikte çekilir (üst sınır MAX_PAGES).
-export const MAX_PAGES = 10;
+//
+// Tavan neden var: her tıklama 1..N sayfaları BAŞTAN çekip ızgarayı yeniden
+// çiziyor, yani maliyet gösterilen film sayısıyla doğrusal artıyor
+// (ölçüm: 20 film ≈ 0,09 sn sunucu render). 10 sayfa = 200 film çok erken
+// bitiyordu — TMDB'de tek başına komedi türünde 12.800 film var. 25 sayfa
+// (500 film) sonunda ~2,5 sn'ye çıkıyor; bunu yalnızca düğmeye 24 kez basan
+// görür, ilk açılış hâlâ 0,3 sn.
+export const MAX_PAGES = 25;
 
 export interface FilmList {
   films: Film[];
   hasMore: boolean;
 }
 
+// "Daha fazla göster" sayfaları 1..N'i baştan çeker; bu yüzden iki çekimin
+// AYNI anlık görüntüden gelmesi gerekir. Her sayfanın önbellek süresi kendi
+// ilk çekimiyle başladığı için 1. sayfa tazelenirken 2. sayfa eskide
+// kalabiliyor ve kullanıcının az önce gördüğü liste karışıyordu. Saatlik
+// "kova" değeri tüm sayfalara aynı anda yeni bir önbellek anahtarı verir:
+// liste ya tamamen eski ya tamamen yeni olur, yarısı öteki yarısıyla
+// çelişmez. TMDB bilinmeyen parametreyi yok sayar.
+const SNAPSHOT_SECONDS = 3600;
+function snapshotBucket(): string {
+  return String(Math.floor(Date.now() / 1000 / SNAPSHOT_SECONDS));
+}
+
+// Birleşmiş listeyi "geldiği sayfaya" değil kendi sıralama anahtarına göre
+// dizer; eşitlikte kimlik kullanılır ki sonuç her çekimde birebir aynı olsun.
+// popularity.desc bilerek YOK: TMDB'nin döndürdüğü popularity değeri kendi
+// sıralamasıyla uyuşmuyor (ölçüm: 60 filmde 28 konum), yerelde dizmek listeyi
+// düzeltmek yerine TMDB'ye ters düşürürdü — orada sayfa sırası korunur.
+const RAW_SORTERS: Record<string, (a: any, b: any) => number> = {
+  "vote_average.desc": (a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0),
+  "primary_release_date.desc": (a, b) =>
+    String(b.release_date ?? "").localeCompare(String(a.release_date ?? "")),
+};
+
 async function fetchPages(
   path: string,
   locale: Locale,
   params: Record<string, string>,
-  pages: number
+  pages: number,
+  // Arama sonuçlarında verilmez: orada sıra alaka düzeyidir, bozulmamalı
+  sortBy?: string
 ): Promise<{ films: Film[]; totalPages: number }> {
+  const snapshot = snapshotBucket();
   const results = await Promise.all(
     Array.from({ length: pages }, (_, i) =>
-      tmdbFetch(path, locale, { ...params, page: String(i + 1) })
+      tmdbFetch(path, locale, {
+        ...params,
+        page: String(i + 1),
+        _snapshot: snapshot,
+      })
     )
   );
   // Sayfalar arasında tekrar eden filmleri ele
   const seen = new Set<number>();
-  const films: Film[] = [];
+  const raw: any[] = [];
   for (const data of results) {
     for (const m of data.results as any[]) {
       if (seen.has(m.id)) continue;
       seen.add(m.id);
-      films.push(mapListItem(m));
+      raw.push(m);
     }
   }
-  return { films, totalPages: results[0]?.total_pages ?? 1 };
+  const sorter = sortBy ? RAW_SORTERS[sortBy] : undefined;
+  if (sorter) raw.sort(sorter);
+  return {
+    films: raw.map(mapListItem),
+    totalPages: results[0]?.total_pages ?? 1,
+  };
 }
 
 // Arama: TMDB search filtre parametresi desteklemez, sonuçlara yerel filtre uygulanır.
@@ -250,7 +315,8 @@ export async function listFilms(
     "/discover/movie",
     locale,
     params,
-    pages
+    pages,
+    params.sort_by
   );
   return { films, hasMore: pages < Math.min(totalPages, MAX_PAGES) };
 }
@@ -269,7 +335,9 @@ export async function getFilm(
     const director = (m.credits?.crew as any[] | undefined)?.find(
       (c) => c.job === "Director"
     )?.name;
-    const cert = pickCertification(m.release_dates);
+    const byCountry = certificationsByCountry(m.release_dates);
+    const cert = pickCertification(byCountry);
+    const strictest = pickStrictest(byCountry);
     return {
       ...mapListItem(m),
       genres: ((m.genres as any[]) ?? []).map((g) => g.name),
@@ -279,6 +347,9 @@ export async function getFilm(
       certification: cert?.code ?? null,
       certificationCountry: cert?.country ?? null,
       minAge: cert ? certificationAge(cert.code) : null,
+      strictestAge: strictest?.age ?? null,
+      strictestCertification: strictest?.code ?? null,
+      strictestCountry: strictest?.country ?? null,
     };
   } catch {
     return null;

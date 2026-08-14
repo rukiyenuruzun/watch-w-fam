@@ -84,6 +84,12 @@ export interface Film {
   certification?: string | null;
   certificationCountry?: string | null; // "TR", "US"…
   minAge?: number | null; // sınırdan çıkarılan sayı (PG-13 → 13, R → 17)
+  // Ülkeler arasındaki EN KATI sınır. Rozette yukarıdaki gösterilir ama hüküm
+  // bunu kullanır: aynı film US'te 13, FR'de 16 olabiliyor ve altyazının
+  // göremediği görsel içerik çoğu zaman yalnızca katı ülkeye yansıyor.
+  strictestAge?: number | null;
+  strictestCertification?: string | null;
+  strictestCountry?: string | null;
 }
 
 // Kullanıcı değerlendirmesi: filmi beğenme + "yüzdemiz doğru mu?" oyu + yorum

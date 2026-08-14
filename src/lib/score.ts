@@ -1,3 +1,4 @@
+import { forcedTier } from "./known-titles";
 import type { ContentCategory, FilmAnalysis } from "./types";
 
 // ── Taslak puan formülü ───────────────────────────────────────────────
@@ -97,36 +98,94 @@ export function isPersonalized(personal?: SensitivityWeights): boolean {
 // 70–89 izlenmez, ≥90 hayatta izlenmez (Euphoria / Gaspar Noé ligi).
 export type VerdictTier = "ok" | "risky" | "nope" | "never";
 
-// Resmî yaş sınırı bu yaştan büyükse "aileyle izlenir" denmez
-export const ADULT_MIN_AGE = 18;
 // Bu yaştan itibaren analizin eksik kalmış olabileceği uyarısı düşünülür
 export const CAUTION_MIN_AGE = 16;
+// Yaş tabanı YALNIZCA romantik filmlere uygulanır. Bu türde yüksek yaş
+// sınırı neredeyse her zaman cinsel sahne demektir ve o sahnelerde konuşma
+// olmadığı için altyazı analizi onları göremez (ör. After: konuşmada 4
+// gönderme var ama Fransa'da 16+ sınırıyla gösteriliyor).
+// Diğer türlerde yüksek sınır çoğunlukla şiddetten/kandan gelir; bu site
+// aile yanında UTANMA riskini ölçüyor, kan ölçmüyor. Yetişkin bir aile
+// kanlı film izleyebilir, o yüzden 18+ tek başına "riskli" saydırmaz.
+export const ROMANCE_MIN_AGE = 16;
+const ROMANCE_GENRE_ID = 10749;
 
-export function verdictTier(
-  overall: number,
-  minAge?: number | null
-): VerdictTier {
-  const tier: VerdictTier =
+// Hüküm için gereken film bilgisi (Film'in tamamını istemeyelim ki
+// testlerde ve kısmi verilerde de çağrılabilsin)
+export interface AgeSignals {
+  tmdbId?: number;
+  director?: string | null;
+  minAge?: number | null;
+  strictestAge?: number | null;
+  genreIds?: number[];
+}
+
+// Kademe ağırlık sırası: elle konan alt sınırla hesaplananı karşılaştırmak için
+const TIER_RANK: Record<VerdictTier, number> = {
+  ok: 0,
+  risky: 1,
+  nope: 2,
+  never: 3,
+};
+
+// Hükümde kullanılan yaş: ülkeler arasındaki en katı sınır
+function effectiveAge(film?: AgeSignals | null): number {
+  return film?.strictestAge ?? film?.minAge ?? 0;
+}
+
+// Bu filmde "aileyle izlenir" için gereken üst yaş eşiği; null = taban yok
+export function ageFloorThreshold(film?: AgeSignals | null): number | null {
+  return film?.genreIds?.includes(ROMANCE_GENRE_ID) ? ROMANCE_MIN_AGE : null;
+}
+
+// Yaş sınırı hükmü yükseltiyor mu?
+function isFloored(film?: AgeSignals | null): boolean {
+  const floor = ageFloorThreshold(film);
+  return floor !== null && effectiveAge(film) >= floor;
+}
+
+export function verdictTier(overall: number, film?: AgeSignals | null): VerdictTier {
+  let tier: VerdictTier =
     overall < 50 ? "ok" : overall < 70 ? "risky" : overall < 90 ? "nope" : "never";
-  // Analiz altyazıya dayanır ve sessiz sahneleri göremez; yapımın resmî
-  // yaş sınırı 18+ ise "aileyle izlenir" hükmü verilmez, en az "riskli"
-  // sayılır (yüzde olduğu gibi kalır, gerekçe arayüzde yazılır).
-  if (tier === "ok" && (minAge ?? 0) >= ADULT_MIN_AGE) return "risky";
+  // Analiz altyazıya dayanır ve sessiz sahneleri göremez; taban geçerliyse
+  // "aileyle izlenir" hükmü verilmez, en az "riskli" sayılır (yüzde olduğu
+  // gibi kalır, gerekçe arayüzde yazılır).
+  if (tier === "ok" && isFloored(film)) tier = "risky";
+  // Elle işaretlenmiş yapımlar: hesaplanan hüküm daha hafifse alt sınır uygulanır
+  const forced = forcedTier(film?.tmdbId, film?.director);
+  if (forced && TIER_RANK[forced] > TIER_RANK[tier]) return forced;
   return tier;
 }
 
+// Hüküm elle konan alt sınırdan mı geliyor? (arayüzde gerekçe göstermek için)
+export function isForcedVerdict(
+  overall: number,
+  film?: AgeSignals | null
+): boolean {
+  const forced = forcedTier(film?.tmdbId, film?.director);
+  if (!forced) return false;
+  let tier: VerdictTier =
+    overall < 50 ? "ok" : overall < 70 ? "risky" : overall < 90 ? "nope" : "never";
+  if (tier === "ok" && isFloored(film)) tier = "risky";
+  return TIER_RANK[forced] > TIER_RANK[tier];
+}
+
 // Hüküm yaş sınırı yüzünden mi yükseltildi? (arayüzde gerekçe göstermek için)
-export function isAgeFloored(overall: number, minAge?: number | null): boolean {
-  return overall < 50 && (minAge ?? 0) >= ADULT_MIN_AGE;
+export function isAgeFloored(overall: number, film?: AgeSignals | null): boolean {
+  return overall < 50 && isFloored(film);
 }
 
 // "Resmî sınır yetişkin diyor ama analiz neredeyse temiz" durumu: altyazıda
 // konuşulmayan görsel sahneler kaçmış olabilir, kullanıcı uyarılmalı.
+// Not: burada bilerek EN KATI sınır değil, ana ülkenin sınırı kullanılır.
+// Almanya "Yüzüklerin Efendisi"ne 16 veriyor ama gerekçe şiddet; o filmde
+// "cinsel sahne kaçmış olabilir" uyarısı çıkarsa uyarı değerini yitirir.
+// En katı sınır yalnızca hükme taban uygularken (verdictTier) devreye girer.
 export function needsVisualCaution(
   scores: Record<ContentCategory, number>,
-  minAge?: number | null
+  film?: AgeSignals | null
 ): boolean {
-  if ((minAge ?? 0) < CAUTION_MIN_AGE) return false;
+  if ((film?.minAge ?? 0) < CAUTION_MIN_AGE) return false;
   const sexual =
     scores.sexual_dialogue +
     scores.sexual_implication +

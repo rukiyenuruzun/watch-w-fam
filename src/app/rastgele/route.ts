@@ -46,7 +46,7 @@ export async function GET() {
         computeCategoryScores(merged, (film as Film).runtime),
         personal
       ),
-      (film as Film).minAge
+      film as Film
     );
     if (tier === "ok" || tier === "risky") eligible.push(film.tmdbId);
   }

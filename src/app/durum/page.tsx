@@ -12,6 +12,7 @@ import { getIdentity } from "@/lib/auth";
 import { getVerifiedEventsMap } from "@/lib/contributions";
 import { getWatchlistIds } from "@/lib/watchlist";
 import { DICTIONARIES } from "@/lib/i18n";
+import { forcedTier } from "@/lib/known-titles";
 import { getLocale } from "@/lib/locale";
 import { getQuota } from "@/lib/opensubtitles";
 import { getSensitivity } from "@/lib/sensitivity";
@@ -69,14 +70,24 @@ export default async function StatusPage() {
   ]);
   for (const film of analyzedFilms) {
     const analysis = analyses.get(film.tmdbId);
-    if (!analysis) continue;
+    if (!analysis) {
+      // Elle işaretlenmiş yapımlar analiz beklemeden hükmünü alır
+      const forced = forcedTier(film.tmdbId);
+      if (forced) {
+        badges.set(film.tmdbId, {
+          emoji: VERDICT_META[forced].emoji,
+          label: t.verdicts[forced].title,
+        });
+      }
+      continue;
+    }
     const extra = extras.get(film.tmdbId);
     const merged = extra
       ? { ...analysis, events: [...analysis.events, ...extra] }
       : analysis;
     const tier = verdictTier(
       computeOverallRisk(computeCategoryScores(merged, film.runtime), personal),
-      film.minAge
+      film
     );
     badges.set(film.tmdbId, {
       emoji: VERDICT_META[tier].emoji,

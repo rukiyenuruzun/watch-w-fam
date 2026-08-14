@@ -7,10 +7,12 @@ import {
 } from "@/lib/contributions";
 import { DICTIONARIES, SUBTITLE_LANG_NAMES, type Locale } from "@/lib/i18n";
 import Link from "next/link";
+import { forcedTier } from "@/lib/known-titles";
 import {
   computeCategoryScores,
   computeOverallRisk,
   isAgeFloored,
+  isForcedVerdict,
   isPersonalized,
   needsVisualCaution,
   verdictTier,
@@ -46,9 +48,15 @@ interface Props {
   // Topluluk sahne katkıları (oy bilgisi görüntüleyene göre)
   community?: SceneContribution[];
   // Resmî yaş sınırı: hükme taban uygular ve "görsel sahne kaçmış olabilir"
-  // uyarısını tetikler
+  // uyarısını tetikler. Taban hesabı ülkeler arasındaki en katı sınırı
+  // kullanır, rozette gösterilense ana ülkeninkidir.
   minAge?: number | null;
   certification?: string | null;
+  strictestAge?: number | null;
+  strictestCertification?: string | null;
+  strictestCountry?: string | null;
+  genreIds?: number[];
+  director?: string | null;
 }
 
 export default function AnalysisPanel({
@@ -59,8 +67,26 @@ export default function AnalysisPanel({
   community = [],
   minAge,
   certification,
+  strictestAge,
+  strictestCertification,
+  strictestCountry,
+  genreIds,
+  director,
 }: Props) {
   const t = DICTIONARIES[locale];
+  // Elle işaretlenmiş yapım: hüküm altyazı analizini beklemez
+  const forced = forcedTier(analysis.tmdbId, director);
+  const knownNote = (body: string) => (
+    <div className="flex flex-wrap items-start gap-3 rounded-md border border-line bg-surface p-4 text-left">
+      <span aria-hidden className="text-xl">
+        📌
+      </span>
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="text-sm font-semibold">{t.knownTitle.title}</p>
+        <p className="text-xs leading-relaxed text-muted">{body}</p>
+      </div>
+    </div>
+  );
 
   if (analysis.status !== "completed") {
     // Bu durumlarda işçi aktif çalışıyor: sayfa kendini tazeler, dönen halka gösterilir
@@ -68,7 +94,32 @@ export default function AnalysisPanel({
       analysis.status
     );
     return (
-      <section className="rounded-md border border-line bg-surface p-6 text-center">
+      <section className="space-y-4">
+        {/* İşaretli yapımda hüküm analizden bağımsız gösterilir; yüzde yok
+            çünkü ortada hesaplanmış bir sahne dökümü yok */}
+        {forced && (
+          <div
+            className="flex items-center gap-4 rounded-md border-2 p-5 text-left"
+            style={{
+              borderColor: VERDICT_META[forced].color,
+              backgroundColor: `${VERDICT_META[forced].color}1a`,
+            }}
+          >
+            <span className="text-4xl drop-shadow-lg sm:text-5xl" aria-hidden>
+              {VERDICT_META[forced].emoji}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-lg font-extrabold leading-tight sm:text-2xl">
+                {t.verdicts[forced].title}
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                {t.verdicts[forced].subtitle}
+              </p>
+            </div>
+          </div>
+        )}
+        {forced && knownNote(t.knownTitle.bodyNoScore)}
+        <div className="rounded-md border border-line bg-surface p-6 text-center">
         <h2 className="mb-3 text-lg font-semibold">{t.analysisTitle}</h2>
         {analysis.status === "none" ? (
           <>
@@ -114,6 +165,7 @@ export default function AnalysisPanel({
             )}
           </>
         )}
+        </div>
       </section>
     );
   }
@@ -128,9 +180,23 @@ export default function AnalysisPanel({
 
   const scores = computeCategoryScores(scoringAnalysis, runtimeMinutes);
   const overall = computeOverallRisk(scores, personal);
-  const tier = verdictTier(overall, minAge);
-  const ageFloored = isAgeFloored(overall, minAge);
-  const visualCaution = needsVisualCaution(scores, minAge);
+  const ageSignals = {
+    tmdbId: analysis.tmdbId,
+    director,
+    minAge,
+    strictestAge,
+    genreIds,
+  };
+  const tier = verdictTier(overall, ageSignals);
+  const ageFloored = isAgeFloored(overall, ageSignals);
+  const visualCaution = needsVisualCaution(scores, ageSignals);
+  const forcedApplied = isForcedVerdict(overall, ageSignals);
+  // Hükmü belirleyen sınır rozettekinden katıysa (ör. US 13 / FR 16)
+  // gerekçede o ülkeninki gösterilir, yoksa kullanıcı çelişki görür
+  const drivingCert =
+    (strictestAge ?? 0) > (minAge ?? 0) && strictestCertification
+      ? { code: strictestCertification, country: strictestCountry }
+      : { code: certification, country: null };
   const meta = VERDICT_META[tier];
   const verdict = t.verdicts[tier];
   const hours =
@@ -182,14 +248,22 @@ export default function AnalysisPanel({
       {/* Resmî yaş sınırı uyarısı: altyazı analizinin göremediği görsel
           sahneler için tek dış kanıt. Hüküm yükseltildiyse gerekçesi de
           burada yazar — kullanıcı neyin neden değiştiğini görsün. */}
-      {(ageFloored || visualCaution) && certification && (
+      {/* Hüküm elle konan alt sınırdan geliyorsa yüzdeyle çelişkili
+          görünmesin diye gerekçe hemen altta yazar */}
+      {forcedApplied && <div className="-mt-2">{knownNote(t.knownTitle.body)}</div>}
+
+      {/* Elle işaret devredeyken yaş gerekçesi fazlalık: hükmü zaten
+          yukarıdaki not açıklıyor */}
+      {!forcedApplied && (ageFloored || visualCaution) && drivingCert.code && (
         <div className="-mt-2 flex flex-wrap items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-4">
           <span aria-hidden className="text-xl">
             🔞
           </span>
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-semibold text-amber-300">
-              {t.ageRating.title(certification)}
+              {drivingCert.country
+                ? t.ageRating.titleCountry(drivingCert.code, drivingCert.country)
+                : t.ageRating.title(drivingCert.code)}
             </p>
             <p className="text-xs leading-relaxed text-muted">
               {ageFloored ? t.ageRating.floored : t.ageRating.caution}

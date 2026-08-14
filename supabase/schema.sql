@@ -95,3 +95,33 @@ alter table scene_votes enable row level security;
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('avatars', 'avatars', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
+
+-- ── Adım 11: herkese açık profiller ve arkadaşlık ────────────────────
+--
+-- Kullanıcı bilgisi Supabase'in auth.users tablosunda duruyor ve oraya
+-- yalnızca service_role erişebiliyor. Arkadaşının adını/fotoğrafını
+-- gösterebilmek için küçük bir ayna tablo gerekiyor; kayıt olurken ve
+-- profil güncellenirken buraya da yazılır.
+create table if not exists profiles (
+  id uuid primary key,                  -- auth.users.id
+  display_name text not null default '',
+  avatar_url text,
+  updated_at timestamptz not null default now()
+);
+
+-- Arkadaşlık: tek satır iki yönü de tutar (çift kayıt yok).
+-- status: pending (istek gönderildi) | accepted (kabul edildi)
+-- Sorgu "arkadaşlarım" = accepted olan ve iki taraftan biri ben olan satırlar.
+create table if not exists friendships (
+  requester_id uuid not null,
+  addressee_id uuid not null,
+  status text not null default 'pending' check (status in ('pending', 'accepted')),
+  created_at timestamptz not null default now(),
+  primary key (requester_id, addressee_id),
+  -- Kendine arkadaşlık isteği gönderilemez
+  check (requester_id <> addressee_id)
+);
+create index if not exists friendships_addressee_idx on friendships (addressee_id);
+
+alter table profiles enable row level security;
+alter table friendships enable row level security;

@@ -56,14 +56,18 @@ export async function getRequests(): Promise<RequestRecord[]> {
   return (data as RequestRow[]).map(toRequest);
 }
 
-// Analizi tamamlanmış tüm film kimlikleri (veritabanı + demo)
+// Analizi tamamlanmış tüm film kimlikleri (veritabanı + demo).
+// EN SON analiz edilen başta: "Yeni analiz edilenler" rafından "tümünü gör"e
+// geçildiğinde sıra korunsun — sıralamasız sorgu filmleri en eskiden
+// başlatıyordu, bu da rafın vaadiyle çelişiyordu.
 export async function getAnalyzedIds(): Promise<number[]> {
-  const ids = new Set<number>(Object.keys(DEMO_ANALYSES).map(Number));
   const { data, error } = await getSupabase()
     .from("analyses")
-    .select("tmdb_id");
+    .select("tmdb_id")
+    .order("updated_at", { ascending: false });
   if (error) throw new Error(`Analiz listesi okunamadı: ${error.message}`);
-  for (const row of data) ids.add(row.tmdb_id);
+  const ids = new Set<number>(data.map((row) => row.tmdb_id));
+  for (const id of Object.keys(DEMO_ANALYSES).map(Number)) ids.add(id);
   return [...ids];
 }
 

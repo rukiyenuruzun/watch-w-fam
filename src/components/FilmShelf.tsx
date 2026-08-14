@@ -1,5 +1,6 @@
 import Link from "next/link";
 import FilmCard from "./FilmCard";
+import ShelfScroller from "./ShelfScroller";
 import type { Film } from "@/lib/types";
 
 export interface ShelfItem {
@@ -17,12 +18,21 @@ interface Props {
   title: string;
   seeAllHref: string;
   seeAllLabel: string;
+  prevLabel: string;
+  nextLabel: string;
   items: ShelfItem[];
 }
 
 // Ana sayfa rafı: yatay kaydırılan kart şeridi + "Tümünü gör" bağlantısı.
 // Boş raf kendini gizler (arşiv büyüdükçe raflar kendiliğinden dolar).
-export default function FilmShelf({ title, seeAllHref, seeAllLabel, items }: Props) {
+export default function FilmShelf({
+  title,
+  seeAllHref,
+  seeAllLabel,
+  prevLabel,
+  nextLabel,
+  items,
+}: Props) {
   if (items.length === 0) return null;
   return (
     // Alt bölümlerden (max-w-5xl) daha geniş ama kenarlardan nefes payı
@@ -39,13 +49,13 @@ export default function FilmShelf({ title, seeAllHref, seeAllLabel, items }: Pro
           {seeAllLabel}
         </Link>
       </div>
-      <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:thin]">
+      <ShelfScroller prevLabel={prevLabel} nextLabel={nextLabel}>
         {items.map(({ film, badge, watchlist }) => (
           <div key={film.tmdbId} className="w-48 shrink-0 sm:w-56">
             <FilmCard film={film} badge={badge} watchlist={watchlist} plain />
           </div>
         ))}
-      </div>
+      </ShelfScroller>
     </section>
   );
 }

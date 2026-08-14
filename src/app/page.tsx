@@ -24,6 +24,7 @@ import {
 import type { Film } from "@/lib/types";
 import { genreOptions } from "@/lib/genres";
 import { DICTIONARIES } from "@/lib/i18n";
+import { forcedTier, forcedTierIds } from "@/lib/known-titles";
 import { getLocale } from "@/lib/locale";
 import {
   computeCategoryScores,
@@ -61,7 +62,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   let hasMore = false;
   let people: PersonHit[] = [];
   if (filters.risk || filters.sort === "risk") {
-    const ids = await getAnalyzedIds();
+    // Kaynak: analiz arşivi + elle işaretlenen yapımlar. İkincilerin altyazı
+    // analizi olmayabilir ama hükmü bilindiği için risk kategorilerinde ve
+    // "sadece analizli" görünümünde yer almaları gerekir.
+    const ids = [
+      ...new Set([...(await getAnalyzedIds()), ...forcedTierIds()]),
+    ];
     const all = (
       await Promise.all(ids.map((id) => getFilm(id, locale)))
     ).filter((f) => f !== null);
@@ -108,7 +114,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   ]);
   for (const film of films) {
     const analysis = analyses.get(film.tmdbId);
-    if (!analysis) continue;
+    if (!analysis) {
+      // Elle işaretlenmiş yapımlar analiz beklemeden hükmünü alır
+      const forced = forcedTier(film.tmdbId);
+      if (forced) tiers.set(film.tmdbId, forced);
+      continue;
+    }
     const extra = extras.get(film.tmdbId);
     const merged = extra
       ? { ...analysis, events: [...analysis.events, ...extra] }
@@ -117,7 +128,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       computeCategoryScores(merged, film.runtime),
       personal
     );
-    tiers.set(film.tmdbId, verdictTier(overall, film.minAge));
+    tiers.set(film.tmdbId, verdictTier(overall, film));
     risks.set(film.tmdbId, overall);
   }
 
@@ -174,7 +185,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         film.tmdbId,
         verdictTier(
           computeOverallRisk(computeCategoryScores(merged, film.runtime), personal),
-          film.minAge
+          film
         )
       );
     }
@@ -381,6 +392,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           title={shelf.title}
           seeAllHref={shelf.href}
           seeAllLabel={t.shelves.seeAll}
+          prevLabel={t.shelves.prev}
+          nextLabel={t.shelves.next}
           items={shelf.items}
         />
       ))}
